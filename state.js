@@ -3,10 +3,99 @@
 (function () {
     const STORAGE_KEY = 'QuinnHouseState';
     const DB_VERSION = 'v6_clean';
+    const VIETNAM_TIME_ZONE = 'Asia/Ho_Chi_Minh';
+
+    function pad2(value) {
+        return String(value).padStart(2, '0');
+    }
+
+    function getVietnamParts(date = new Date()) {
+        const parts = new Intl.DateTimeFormat('en-CA', {
+            timeZone: VIETNAM_TIME_ZONE,
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+        }).formatToParts(date);
+
+        return parts.reduce((acc, part) => {
+            if (part.type !== 'literal') {
+                acc[part.type] = part.value;
+            }
+            return acc;
+        }, {});
+    }
+
+    function getVietnamDateString(date = new Date()) {
+        const parts = getVietnamParts(date);
+        return `${parts.day}/${parts.month}/${parts.year}`;
+    }
+
+    function getVietnamDateTimeString(date = new Date()) {
+        const parts = getVietnamParts(date);
+        return `${parts.day}/${parts.month}/${parts.year} ${parts.hour}:${parts.minute}:${parts.second}`;
+    }
+
+    function getVietnamDatePlusYears(years) {
+        const parts = getVietnamParts();
+        return `${parts.day}/${parts.month}/${Number(parts.year) + years}`;
+    }
+
+    function getRecentPeriods(count) {
+        const parts = getVietnamParts();
+        const monthIndex = Number(parts.month) - 1;
+        const year = Number(parts.year);
+        const periods = [];
+
+        for (let offset = count - 1; offset >= 0; offset--) {
+            const absoluteMonth = year * 12 + monthIndex - offset;
+            const periodYear = Math.floor(absoluteMonth / 12);
+            const periodMonthIndex = ((absoluteMonth % 12) + 12) % 12;
+            const periodMonth = periodMonthIndex + 1;
+
+            periods.push({
+                label: `Thg ${periodMonth}`,
+                periodKey: `Tháng ${pad2(periodMonth)}/${periodYear}`,
+                year: periodYear,
+                month: periodMonth,
+                isCurrent: offset === 0
+            });
+        }
+
+        return periods;
+    }
+
+    function getVietnamDateEpoch(dateString) {
+        const parts = dateString.split('/');
+        if (parts.length !== 3) return null;
+
+        const day = Number(parts[0]);
+        const month = Number(parts[1]);
+        const year = Number(parts[2]);
+
+        if (!day || !month || !year) return null;
+        return Date.UTC(year, month - 1, day);
+    }
+
+    function reloadStateFromStorage() {
+        try {
+            const stored = localStorage.getItem(STORAGE_KEY);
+            if (stored) {
+                state = JSON.parse(stored);
+                return true;
+            }
+        } catch (e) {
+            console.error('KhÃ´ng thá»ƒ refresh state tá»« LocalStorage:', e);
+        }
+        return false;
+    }
 
     function getCurrentPeriod() {
-        const today = new Date();
-        return `Tháng ${(today.getMonth() + 1).toString().padStart(2, '0')}/${today.getFullYear()}`;
+        const parts = getVietnamParts();
+        return `Tháng ${parts.month}/${parts.year}`;
     }
 
     // Dữ liệu thật từ 2 file tài liệu của khách hàng
@@ -289,6 +378,7 @@
     function saveState() {
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+            window.dispatchEvent(new CustomEvent('quinn-state-updated'));
         } catch (e) {
             console.error('Không thể lưu state vào LocalStorage:', e);
         }
@@ -297,6 +387,20 @@
     // API quản lý trạng thái xuất ra ngoài
     window.QuinnState = {
         getCurrentPeriod: getCurrentPeriod,
+
+        getStorageKey: () => STORAGE_KEY,
+
+        getTimeZone: () => VIETNAM_TIME_ZONE,
+
+        getVietnamDateString: getVietnamDateString,
+
+        getVietnamDateTimeString: getVietnamDateTimeString,
+
+        getVietnamDatePlusYears: getVietnamDatePlusYears,
+
+        getRecentPeriods: getRecentPeriods,
+
+        refreshFromStorage: reloadStateFromStorage,
 
         getSettings: () => state.settings,
 
@@ -409,8 +513,7 @@
                     ? Math.max(...room.maintenanceLogs.map(l => l.id)) + 1 
                     : 1;
                 
-                const today = new Date();
-                const dateString = `${today.getDate().toString().padStart(2, '0')}/${(today.getMonth() + 1).toString().padStart(2, '0')}/${today.getFullYear()}`;
+                const dateString = getVietnamDateString();
                 
                 room.maintenanceLogs.unshift({
                     id: newId,
@@ -436,8 +539,7 @@
                 utilityCost: utilCost
             };
 
-            const today = new Date();
-            const dateString = `${today.getDate().toString().padStart(2, '0')}/${(today.getMonth() + 1).toString().padStart(2, '0')}/${today.getFullYear()}`;
+            const dateString = getVietnamDateString();
             
             room.utilityHistory.unshift({
                 period: period,
@@ -497,8 +599,7 @@
             const invoice = state.invoices.find(i => i.id === invoiceId);
             if (invoice) {
                 invoice.status = 'Paid';
-                const today = new Date();
-                invoice.paymentDate = `${today.getDate().toString().padStart(2, '0')}/${(today.getMonth() + 1).toString().padStart(2, '0')}/${today.getFullYear()}`;
+                invoice.paymentDate = getVietnamDateString();
                 saveState();
             }
         },
@@ -508,8 +609,7 @@
             if (invoice) {
                 invoice.status = status;
                 if (status === 'Paid') {
-                    const today = new Date();
-                    invoice.paymentDate = `${today.getDate().toString().padStart(2, '0')}/${(today.getMonth() + 1).toString().padStart(2, '0')}/${today.getFullYear()}`;
+                    invoice.paymentDate = getVietnamDateString();
                 } else {
                     invoice.paymentDate = '';
                 }
@@ -527,10 +627,10 @@
                 .filter(r => r.status === 'rented' && r.tenant)
                 .map(r => {
                     let status = 'Active';
-                    const parts = r.tenant.endDate.split('/');
-                    if (parts.length === 3) {
-                        const endDateObj = new Date(parts[2], parts[1] - 1, parts[0]);
-                        const diffTime = endDateObj - new Date();
+                    const endDateEpoch = getVietnamDateEpoch(r.tenant.endDate);
+                    if (endDateEpoch !== null) {
+                        const todayEpoch = getVietnamDateEpoch(getVietnamDateString());
+                        const diffTime = endDateEpoch - todayEpoch;
                         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
                         if (diffDays <= 30 && diffDays >= 0) {
                             status = 'Expiring';

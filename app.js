@@ -69,6 +69,28 @@
     }
 
     // Cập nhật class CSS Active của các liên kết trên Sidebar
+    function setupRealtimeClock() {
+        const clockEl = document.getElementById('vietnam-realtime-clock');
+        if (!clockEl || !window.QuinnState) return;
+
+        const updateClock = () => {
+            clockEl.textContent = window.QuinnState.getVietnamDateTimeString();
+        };
+
+        updateClock();
+        setInterval(updateClock, 1000);
+    }
+
+    function setupRealtimeStateSync() {
+        if (!window.QuinnState) return;
+
+        window.addEventListener('storage', (event) => {
+            if (event.key !== window.QuinnState.getStorageKey()) return;
+            if (!window.QuinnState.refreshFromStorage()) return;
+            router();
+        });
+    }
+
     function updateSidebarActive(viewName) {
         const sidebar = document.querySelector('aside');
         if (!sidebar) return;
@@ -160,6 +182,9 @@
 
         // Lắng nghe thay đổi hash để chuyển trang động
         window.addEventListener('hashchange', router);
+
+        setupRealtimeClock();
+        setupRealtimeStateSync();
 
         // Khởi chạy router lần đầu tiên
         router();

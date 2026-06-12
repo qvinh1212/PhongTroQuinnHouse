@@ -220,6 +220,13 @@
             
             <!-- Actions -->
             <div class="flex items-center gap-4">
+                <div class="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface-container-low border border-outline-variant text-on-surface-variant">
+                    <span class="material-symbols-outlined text-[18px] text-primary">schedule</span>
+                    <div class="leading-tight">
+                        <p id="vietnam-realtime-clock" class="text-xs font-semibold text-on-surface tabular-nums">--/--/---- --:--:--</p>
+                        <p class="text-[10px] text-on-surface-variant">GMT+7 Việt Nam</p>
+                    </div>
+                </div>
                 <button class="w-10 h-10 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-container-high transition-colors relative" onclick="alert('Không có thông báo mới.')">
                     <span class="material-symbols-outlined">notifications</span>
                 </button>

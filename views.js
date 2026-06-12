@@ -169,26 +169,24 @@
             const newMaintenanceRooms = rooms.filter(r => r.maintenanceLogs.some(l => l.status === 'Mới'));
 
             // Tính nhãn và doanh thu cho 6 tháng gần nhất động
-            const last6Months = [];
-            const todayObj = new Date();
-            for (let i = 5; i >= 0; i--) {
-                const d = new Date(todayObj.getFullYear(), todayObj.getMonth() - i, 1);
-                const monthName = `Thg ${d.getMonth() + 1}`;
-                const periodKey = `Tháng ${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
+            const last6Months = window.QuinnState.getRecentPeriods(6).map(period => {
+                const periodKey = period.periodKey;
                 
                 // Doanh thu thực tế cho từng tháng trong quá khứ
                 const monthInvoices = invoices.filter(inv => inv.period === periodKey);
                 const monthRevenue = monthInvoices.filter(inv => inv.status === 'Paid').reduce((sum, inv) => sum + inv.total, 0);
                 const monthExpected = monthInvoices.reduce((sum, inv) => sum + inv.total, 0);
                 
-                last6Months.push({
-                    label: monthName,
+                return {
+                    label: period.label,
                     periodKey: periodKey,
+                    year: period.year,
                     revenue: monthRevenue,
                     expected: monthExpected,
-                    isCurrent: i === 0
-                });
-            }
+                    isCurrent: period.isCurrent
+                };
+            });
+            const currentYear = last6Months[last6Months.length - 1].year;
 
             const maxRevenueInChart = Math.max(...last6Months.map(m => m.revenue), 10000000); // Tối thiểu là 10tr để chia tỉ lệ
             const barsHTML = last6Months.map((m, index) => {
@@ -291,7 +289,7 @@
                             <div class="flex justify-between items-center mb-6">
                                 <h3 class="font-title-lg text-title-lg text-on-surface">Doanh thu 6 tháng gần nhất</h3>
                                 <select class="bg-surface-container-low border border-outline-variant rounded px-3 py-1 font-body-md text-body-md focus:outline-none focus:border-primary">
-                                    <option>Năm ${todayObj.getFullYear()}</option>
+                                    <option>Năm ${currentYear}</option>
                                 </select>
                             </div>
                             <!-- Bar Chart Visual -->
@@ -1649,12 +1647,8 @@
             const room = window.QuinnState.getRoomById(roomId);
             if (!room) return;
 
-            const today = new Date();
-            const todayStr = `${today.getDate().toString().padStart(2, '0')}/${(today.getMonth() + 1).toString().padStart(2, '0')}/${today.getFullYear()}`;
-            
-            const nextYear = new Date();
-            nextYear.setFullYear(today.getFullYear() + 1);
-            const nextYearStr = `${nextYear.getDate().toString().padStart(2, '0')}/${(nextYear.getMonth() + 1).toString().padStart(2, '0')}/${nextYear.getFullYear()}`;
+            const todayStr = window.QuinnState.getVietnamDateString();
+            const nextYearStr = window.QuinnState.getVietnamDatePlusYears(1);
 
             const contentHTML = `
                 <div class="space-y-4">
