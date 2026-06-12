@@ -26,7 +26,15 @@ function loadLegacyState() {
 
     context.window = context;
 
-    const statePath = path.join(__dirname, '..', '..', 'state.js');
+    const statePath = [
+        path.join(__dirname, '..', 'state.js'),
+        path.join(__dirname, '..', '..', 'state.js')
+    ].find(candidate => fs.existsSync(candidate));
+
+    if (!statePath) {
+        throw new Error('Cannot find legacy state.js for seeding');
+    }
+
     const source = fs.readFileSync(statePath, 'utf8');
     vm.runInNewContext(source, context, { filename: statePath });
 

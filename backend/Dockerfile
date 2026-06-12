@@ -2,12 +2,13 @@ FROM node:22-alpine
 
 WORKDIR /app
 
-COPY package.json ./
+COPY backend/package.json ./
 RUN npm install --omit=dev
 
-COPY migrations ./migrations
-COPY scripts ./scripts
-COPY src ./src
+COPY backend/migrations ./migrations
+COPY backend/scripts ./scripts
+COPY backend/src ./src
+COPY state.js ./state.js
 
 EXPOSE 8080
 
