@@ -1,0 +1,10 @@
+DROP TABLE IF EXISTS app_events;
+DROP TABLE IF EXISTS audit_logs;
+DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS maintenance_logs;
+DROP TABLE IF EXISTS utility_records;
+DROP TABLE IF EXISTS invoices;
+DROP TABLE IF EXISTS contracts;
+DROP TABLE IF EXISTS tenants;
+DROP TABLE IF EXISTS rooms;
+DROP TABLE IF EXISTS settings;

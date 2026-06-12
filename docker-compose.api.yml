@@ -1,0 +1,36 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: quinn_house
+      POSTGRES_USER: quinn_house
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      TZ: Asia/Ho_Chi_Minh
+    volumes:
+      - quinn_house_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U quinn_house -d quinn_house"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: 8080
+      DATABASE_URL: postgres://quinn_house:${POSTGRES_PASSWORD:-change-me}@postgres:5432/quinn_house
+      API_KEY: ${API_KEY:-change-me}
+      CORS_ORIGIN: ${CORS_ORIGIN:-https://phongtro.qbo.io.vn}
+      TZ: Asia/Ho_Chi_Minh
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8080"
+    command: sh -c "npm run migrate && npm start"
+
+volumes:
+  quinn_house_postgres:
