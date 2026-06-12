@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Quinn House - Hệ thống quản lý nhà trọ</title>
+    
+    <!-- Tailwind CSS Play CDN -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    
+    <!-- Google Fonts & Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+    
+    <!-- Tailwind Configuration -->
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#031636",
+                        "primary-container": "#1a2b4c",
+                        "secondary": "#625f4f",
+                        "secondary-container": "#e5e0cc",
+                        "secondary-fixed": "#e8e2cf",
+                        "secondary-fixed-dim": "#ccc6b4",
+                        "tertiary": "#241300",
+                        "tertiary-container": "#3f2600",
+                        "tertiary-fixed": "#ffddb5",
+                        "tertiary-fixed-dim": "#eabf8a",
+                        "background": "#fbf8fc",
+                        "surface": "#fbf8fc",
+                        "surface-dim": "#dbd9dd",
+                        "surface-bright": "#fbf8fc",
+                        "surface-variant": "#e4e2e5",
+                        "surface-container": "#efedf0",
+                        "surface-container-low": "#f5f3f6",
+                        "surface-container-high": "#e9e7eb",
+                        "surface-container-highest": "#e4e2e5",
+                        "surface-container-lowest": "#ffffff",
+                        "on-primary": "#ffffff",
+                        "on-primary-container": "#8293ba",
+                        "on-primary-fixed": "#071b3b",
+                        "on-primary-fixed-variant": "#364669",
+                        "on-secondary": "#ffffff",
+                        "on-secondary-container": "#666353",
+                        "on-secondary-fixed": "#1e1c10",
+                        "on-secondary-fixed-variant": "#4a4739",
+                        "on-tertiary": "#ffffff",
+                        "on-tertiary-container": "#b28c5b",
+                        "on-tertiary-fixed": "#2a1800",
+                        "on-tertiary-fixed-variant": "#5e4117",
+                        "on-background": "#1b1b1e",
+                        "on-surface": "#1b1b1e",
+                        "on-surface-variant": "#44474e",
+                        "outline": "#75777f",
+                        "outline-variant": "#c5c6cf",
+                        "error": "#ba1a1a",
+                        "error-container": "#ffdad6",
+                        "on-error": "#ffffff",
+                        "on-error-container": "#93000a",
+                        "inverse-surface": "#303033",
+                        "inverse-on-surface": "#f2f0f3",
+                        "inverse-primary": "#b6c6f0",
+                        "surface-tint": "#4e5e82"
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    spacing: {
+                        "xs": "4px",
+                        "base": "4px",
+                        "sm": "8px",
+                        "md": "16px",
+                        "lg": "24px",
+                        "xl": "40px",
+                        "container-margin": "24px",
+                        "gutter": "16px"
+                    },
+                    fontFamily: {
+                        "body-md": ["Be Vietnam Pro"],
+                        "headline-md": ["Be Vietnam Pro"],
+                        "headline-lg": ["Be Vietnam Pro"],
+                        "display-lg": ["Be Vietnam Pro"],
+                        "title-lg": ["Be Vietnam Pro"]
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Custom CSS -->
+    <style>
+        body {
+            font-family: 'Be Vietnam Pro', sans-serif;
+            background-color: #F8F9FA;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            transition: font-variation-settings 0.15s ease;
+        }
+        
+        /* Custom scrollbar for better UX */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #c5c6cf;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #75777f;
+        }
+
+        /* Responsive Sidebar Styles for Mobile */
+        @media (max-width: 768px) {
+            aside {
+                position: fixed !important;
+                left: 0;
+                top: 0;
+                height: 100vh;
+                transform: translateX(0);
+                transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+                box-shadow: 4px 0 16px rgba(0, 0, 0, 0.15);
+            }
+            aside.hidden-mobile-nav {
+                transform: translateX(-100%);
+            }
+            main {
+                margin-left: 0 !important;
+            }
+            header {
+                width: 100% !important;
+            }
+        }
+    </style>
+</head>
+<body class="bg-[#F8F9FA] text-on-surface font-body-md text-body-md antialiased min-h-screen flex overflow-x-hidden">
+
+    <!-- SideNavBar -->
+    <aside class="fixed left-0 top-0 h-full w-[260px] bg-primary dark:bg-primary-container flex flex-col z-40 hidden-mobile-nav">
+        <!-- Logo -->
+        <div class="p-lg flex items-center gap-3 border-b border-outline-variant/20">
+            <div class="w-10 h-10 rounded-lg bg-surface flex items-center justify-center overflow-hidden flex-shrink-0">
+                <span class="material-symbols-outlined text-primary font-bold">home_work</span>
+            </div>
+            <div>
+                <h1 class="font-headline-md text-[18px] font-bold text-on-primary">Quinn House</h1>
+                <p class="font-label-md text-label-md text-on-primary/70">Quản lý nhà trọ</p>
+            </div>
+        </div>
+        
+        <!-- Navigation Links -->
+        <nav id="sidebar-nav" class="flex-1 overflow-y-auto py-md flex flex-col gap-1.5">
+            <a class="flex items-center gap-3 px-4 py-3 text-on-primary/70 hover:text-on-primary hover:bg-primary-fixed-dim/20 transition-all duration-150 rounded-lg mx-2" href="#" data-view="dashboard">
+                <span class="material-symbols-outlined">dashboard</span>
+                <span>Dashboard</span>
+            </a>
+            <a class="flex items-center gap-3 px-4 py-3 text-on-primary/70 hover:text-on-primary hover:bg-primary-fixed-dim/20 transition-all duration-150 rounded-lg mx-2" href="#" data-view="rooms">
+                <span class="material-symbols-outlined">domain</span>
+                <span>Danh sách phòng</span>
+            </a>
+            <a class="flex items-center gap-3 px-4 py-3 text-on-primary/70 hover:text-on-primary hover:bg-primary-fixed-dim/20 transition-all duration-150 rounded-lg mx-2" href="#" data-view="contracts">
+                <span class="material-symbols-outlined">group</span>
+                <span>Khách thuê</span>
+            </a>
+            <a class="flex items-center gap-3 px-4 py-3 text-on-primary/70 hover:text-on-primary hover:bg-primary-fixed-dim/20 transition-all duration-150 rounded-lg mx-2" href="#" data-view="payments">
+                <span class="material-symbols-outlined">payments</span>
+                <span>Thanh toán</span>
+            </a>
+            <a class="flex items-center gap-3 px-4 py-3 text-on-primary/70 hover:text-on-primary hover:bg-primary-fixed-dim/20 transition-all duration-150 rounded-lg mx-2" href="#" data-view="contracts">
+                <span class="material-symbols-outlined">description</span>
+                <span>Hợp đồng</span>
+            </a>
+            <a class="flex items-center gap-3 px-4 py-3 text-on-primary/70 hover:text-on-primary hover:bg-primary-fixed-dim/20 transition-all duration-150 rounded-lg mx-2" href="#" data-view="utilities">
+                <span class="material-symbols-outlined">bolt</span>
+                <span>Điện nước</span>
+            </a>
+        </nav>
+        
+        <!-- Bottom Settings Link -->
+        <div class="mt-auto py-md border-t border-outline-variant/10">
+            <nav id="sidebar-nav-bottom">
+                <a class="flex items-center gap-3 px-4 py-3 text-on-primary/70 hover:text-on-primary hover:bg-primary-fixed-dim/20 transition-all duration-150 rounded-lg mx-2" href="#" data-view="settings">
+                    <span class="material-symbols-outlined">settings</span>
+                    <span>Cài đặt</span>
+                </a>
+            </nav>
+        </div>
+    </aside>
+
+    <!-- Main Content Area Wrapper -->
+    <main class="ml-[260px] flex-1 flex flex-col min-h-screen relative">
+        
+        <!-- TopNavBar -->
+        <header class="fixed top-0 right-0 w-[calc(100%-260px)] h-16 bg-surface border-b border-outline-variant flex justify-between items-center px-lg z-30 transition-colors">
+            
+            <div class="flex items-center gap-md flex-1">
+                <!-- Hamburger menu for mobile -->
+                <button id="menu-toggle-btn" class="md:hidden text-primary p-2 rounded-full hover:bg-surface-container-high transition-colors">
+                    <span class="material-symbols-outlined">menu</span>
+                </button>
+                
+                <!-- Quick Search -->
+                <div class="w-full max-w-xs sm:max-w-md">
+                    <div class="relative">
+                        <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline">search</span>
+                        <input id="global-search-input" class="w-full pl-10 pr-4 py-1.5 bg-surface-container-low border border-outline-variant rounded-full focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-sm text-on-surface transition-shadow" placeholder="Tìm kiếm nhanh..." type="text"/>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Actions -->
+            <div class="flex items-center gap-4">
+                <button class="w-10 h-10 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-container-high transition-colors relative" onclick="alert('Không có thông báo mới.')">
+                    <span class="material-symbols-outlined">notifications</span>
+                </button>
+                <button class="w-10 h-10 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-container-high transition-colors" onclick="window.navigateTo('settings')">
+                    <span class="material-symbols-outlined">settings</span>
+                </button>
+                <div class="h-8 w-px bg-outline-variant mx-1"></div>
+                <div class="flex items-center gap-2 hover:bg-surface-container-high p-1 pr-3 rounded-full transition-colors cursor-pointer" onclick="alert('Tài khoản: Chủ nhà Quinn House')">
+                    <img alt="Ảnh đại diện người dùng" class="w-8 h-8 rounded-full object-cover border border-outline-variant" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC9G9DVzN4tjoQJiGcxY4OJv8GBCOhSS3dSiJwZCnbT78dTb-1KZ4XRaEzFzAN75bgiWBwjG5RYVwRl__rHr9M2FT5WqJ0Xbdwbas4lChTYKsjd5BmOP_2efZycCUNFjvrpIV0e2mM2Yovu-2NoSikvD6LmP0WVU-rE-p4u5c1bTFrlqWKftUETGQIQqomlAv5hrgq-OvCZ8a-QxWL-MGY8RH3aOrOZZQWuF6r6wp79inQfpakkDsJQEr4DIP963LrlqrkWOMa5BZ4"/>
+                    <div class="hidden sm:block text-left">
+                        <p class="font-label-md text-label-md text-on-surface font-semibold">Chủ nhà</p>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Canvas / Dynamic Views Container -->
+        <div id="app-content" class="flex-1 mt-16 p-md md:p-container-margin bg-[#F8F9FA] overflow-y-auto">
+            <!-- Dynamic pages render here -->
+        </div>
+        
+    </main>
+
+    <!-- Load Application Logic Scripts (Order Matters!) -->
+    <script src="./state.js"></script>
+    <script src="./views.js"></script>
+    <script src="./app.js"></script>
+</body>
+</html>

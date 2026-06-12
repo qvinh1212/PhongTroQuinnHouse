@@ -1,0 +1,5 @@
+server.out.log
+server.err.log
+server.log
+.edge-debug-profile/
+.tools/
