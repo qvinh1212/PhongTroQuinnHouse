@@ -4,6 +4,17 @@
     const STORAGE_KEY = 'QuinnHouseState';
     const DB_VERSION = 'v6_clean';
     const VIETNAM_TIME_ZONE = 'Asia/Ho_Chi_Minh';
+    const PAYMENT_DAY_BY_ROOM = {
+        '102': 'Ngày 18',
+        '103': 'Ngày 5 -> 7',
+        '201': 'Ngày 8',
+        '202': 'Ngày 7 -> 9',
+        '203': 'Ngày 1',
+        '301': 'Ngày 15',
+        '302': 'Ngày 10',
+        '303': 'Ngày 23',
+        'Gác mái': 'Ngày 15'
+    };
 
     function pad2(value) {
         return String(value).padStart(2, '0');
@@ -143,7 +154,7 @@
                 occupants: 1,
                 maxOccupants: 3,
                 deposit: 2200000,
-                paymentDay: 'Mùng 18',
+                paymentDay: 'Ngày 18',
                 furniture: ['Giường ngủ', 'Tủ quần áo'],
                 tenant: {
                     name: 'Huỳnh Công Trình',
@@ -166,7 +177,7 @@
                 occupants: 3,
                 maxOccupants: 3,
                 deposit: 4000000,
-                paymentDay: 'Mùng 5 -> 7',
+                paymentDay: 'Ngày 5 -> 7',
                 furniture: ['Giường ngủ', 'Tủ quần áo', 'Điều hòa', 'Tủ lạnh'],
                 tenant: {
                     name: 'Lê Nguyễn Tuấn Nguyên, Trà Thị Như Linh, Đoàn Thanh Hậu',
@@ -189,7 +200,7 @@
                 occupants: 2,
                 maxOccupants: 3,
                 deposit: 3000000,
-                paymentDay: 'Mùng 8',
+                paymentDay: 'Ngày 8',
                 furniture: ['Giường ngủ', 'Tủ quần áo', 'Điều hòa'],
                 tenant: {
                     name: 'Dương Thái Sang & Trịnh Tấn Phát',
@@ -212,7 +223,7 @@
                 occupants: 1,
                 maxOccupants: 2,
                 deposit: 2100000,
-                paymentDay: 'Mùng 7 -> 9',
+                paymentDay: 'Ngày 7 -> 9',
                 furniture: ['Giường ngủ', 'Tủ quần áo'],
                 tenant: {
                     name: 'Lê Trúc Uyên Thy',
@@ -235,7 +246,7 @@
                 occupants: 1,
                 maxOccupants: 2,
                 deposit: 3500000,
-                paymentDay: 'Mùng 1',
+                paymentDay: 'Ngày 1',
                 furniture: ['Giường ngủ', 'Tủ quần áo', 'Điều hòa', 'Tủ lạnh'],
                 tenant: {
                     name: 'Dương Duy Linh',
@@ -258,7 +269,7 @@
                 occupants: 2,
                 maxOccupants: 3,
                 deposit: 3000000,
-                paymentDay: 'Mùng 15',
+                paymentDay: 'Ngày 15',
                 furniture: ['Giường ngủ', 'Tủ quần áo', 'Điều hòa', 'Tủ lạnh'],
                 tenant: {
                     name: 'Trần Thị Diệu Hương & Võ Cao Phát',
@@ -281,7 +292,7 @@
                 occupants: 1,
                 maxOccupants: 2,
                 deposit: 2200000,
-                paymentDay: 'Mùng 10',
+                paymentDay: 'Ngày 10',
                 furniture: ['Giường ngủ', 'Tủ quần áo'],
                 tenant: {
                     name: 'Nguyễn Văn Chương',
@@ -304,7 +315,7 @@
                 occupants: 1,
                 maxOccupants: 2,
                 deposit: 3000000,
-                paymentDay: 'Mùng 23',
+                paymentDay: 'Ngày 23',
                 furniture: ['Giường ngủ', 'Tủ quần áo', 'Điều hòa'],
                 tenant: {
                     name: 'Bùi Minh Hiếu',
@@ -327,7 +338,7 @@
                 occupants: 2,
                 maxOccupants: 2,
                 deposit: 2500000,
-                paymentDay: 'Mùng 15',
+                paymentDay: 'Ngày 15',
                 furniture: ['Giường ngủ', 'Tủ quần áo', 'Quạt máy'],
                 tenant: {
                     name: 'Hà Tôn Kim Hồng & Nguyễn Trần Nhật Đan',
@@ -344,6 +355,21 @@
         invoices: []
     };
 
+    function applyPaymentDaySchedule(targetState) {
+        if (!targetState || !Array.isArray(targetState.rooms)) return false;
+
+        let changed = false;
+        targetState.rooms.forEach(room => {
+            const paymentDay = PAYMENT_DAY_BY_ROOM[room.id];
+            if (paymentDay && room.paymentDay !== paymentDay) {
+                room.paymentDay = paymentDay;
+                changed = true;
+            }
+        });
+
+        return changed;
+    }
+
     // Load state từ LocalStorage
     let state = null;
     try {
@@ -358,6 +384,10 @@
                                (state.invoices && state.invoices.some(i => 'electricityCost' in i || 'waterCost' in i));
             if (needsReset || !r101 || r101.price !== 0 || !state.rooms.some(r => r.id === 'Gác mái') || state.version !== DB_VERSION) {
                 state = initialData;
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+            }
+
+            if (applyPaymentDaySchedule(state)) {
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
             }
         }
@@ -448,7 +478,7 @@
                 room.status = 'rented';
                 room.occupants = Number(occupants);
                 room.deposit = Number(deposit);
-                room.paymentDay = paymentDay || 'Mùng 15';
+                room.paymentDay = paymentDay || 'Ngày 15';
                 room.tenant = {
                     name: tenantName,
                     phone: phone,

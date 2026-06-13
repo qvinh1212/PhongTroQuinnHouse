@@ -1861,7 +1861,7 @@
 
                     <div class="flex flex-col gap-1.5">
                         <label class="text-xs font-semibold text-primary" for="payment-day">Ngày thu tiền hàng tháng (Ví dụ: Mùng 15, Mùng 5 -> 7)</label>
-                        <input id="payment-day" class="w-full border border-outline-variant rounded py-2 px-3 outline-none focus:border-primary" type="text" placeholder="Mùng 15" value="Mùng 15" required />
+                        <input id="payment-day" class="w-full border border-outline-variant rounded py-2 px-3 outline-none focus:border-primary" type="text" placeholder="Ngày 15" value="Ngày 15" required />
                     </div>
                 </div>
             `;
