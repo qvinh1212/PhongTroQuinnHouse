@@ -71,10 +71,34 @@
     // Cập nhật class CSS Active của các liên kết trên Sidebar
     function setupRealtimeClock() {
         const clockEl = document.getElementById('vietnam-realtime-clock');
-        if (!clockEl || !window.QuinnState) return;
+        if (!clockEl) return;
+
+        const formatVietnamDateTime = () => {
+            if (window.QuinnState && typeof window.QuinnState.getVietnamDateTimeString === 'function') {
+                return window.QuinnState.getVietnamDateTimeString();
+            }
+
+            const parts = new Intl.DateTimeFormat('en-CA', {
+                timeZone: 'Asia/Ho_Chi_Minh',
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false
+            }).formatToParts(new Date()).reduce((acc, part) => {
+                if (part.type !== 'literal') {
+                    acc[part.type] = part.value;
+                }
+                return acc;
+            }, {});
+
+            return `${parts.day}/${parts.month}/${parts.year} ${parts.hour}:${parts.minute}:${parts.second}`;
+        };
 
         const updateClock = () => {
-            clockEl.textContent = window.QuinnState.getVietnamDateTimeString();
+            clockEl.textContent = formatVietnamDateTime();
         };
 
         updateClock();
