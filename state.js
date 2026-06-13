@@ -645,6 +645,7 @@
                         tenantName: r.tenant.name,
                         startDate: r.tenant.startDate,
                         endDate: r.tenant.endDate,
+                        paymentDay: r.paymentDay,
                         deposit: r.deposit,
                         status: status
                     };

@@ -14,6 +14,110 @@
     }
 
     // Helper tự động tạo trường nhập liệu chỉnh sửa inline trên thẻ thông tin phòng
+    function getVietnamToday() {
+        const parts = new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Asia/Ho_Chi_Minh',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        }).formatToParts(new Date()).reduce((acc, part) => {
+            if (part.type !== 'literal') acc[part.type] = Number(part.value);
+            return acc;
+        }, {});
+
+        return new Date(parts.year, parts.month - 1, parts.day);
+    }
+
+    function formatDateVN(date) {
+        return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
+    }
+
+    function extractPaymentDueDay(paymentDay) {
+        const numbers = String(paymentDay || '').match(/\d+/g);
+        if (!numbers || numbers.length === 0) return null;
+        return Math.max(1, Math.min(31, Number(numbers[numbers.length - 1])));
+    }
+
+    function getPaymentDueInfo(paymentDay) {
+        const dueDay = extractPaymentDueDay(paymentDay);
+        if (!dueDay) {
+            return {
+                dueDay: null,
+                dueDate: null,
+                label: paymentDay || 'Chưa đặt',
+                daysLeft: null
+            };
+        }
+
+        const today = getVietnamToday();
+        const dueDate = new Date(today.getFullYear(), today.getMonth(), dueDay);
+        if (dueDate.getMonth() !== today.getMonth()) {
+            dueDate.setDate(0);
+        }
+
+        const nextDueDate = new Date(dueDate);
+        if (nextDueDate < today) {
+            nextDueDate.setMonth(nextDueDate.getMonth() + 1, 1);
+            nextDueDate.setDate(Math.min(dueDay, new Date(nextDueDate.getFullYear(), nextDueDate.getMonth() + 1, 0).getDate()));
+        }
+
+        const daysLeft = Math.ceil((nextDueDate - today) / (1000 * 60 * 60 * 24));
+        return {
+            dueDay,
+            dueDate: nextDueDate,
+            label: formatDateVN(nextDueDate),
+            daysLeft
+        };
+    }
+
+    function getTenantPaymentStatus(room, invoices) {
+        const dueDay = extractPaymentDueDay(room.paymentDay);
+        if (!dueDay) {
+            return {
+                label: 'Chưa đặt hạn',
+                tone: 'bg-surface-container-high text-on-surface-variant border border-outline-variant',
+                icon: 'event_busy'
+            };
+        }
+
+        const today = getVietnamToday();
+        const currentPeriod = window.QuinnState.getCurrentPeriod();
+        const invoice = invoices.find(inv => inv.roomId === room.id && inv.period === currentPeriod);
+        const dueThisMonth = new Date(today.getFullYear(), today.getMonth(), dueDay);
+        if (dueThisMonth.getMonth() !== today.getMonth()) dueThisMonth.setDate(0);
+        const daysToDue = Math.ceil((dueThisMonth - today) / (1000 * 60 * 60 * 24));
+
+        if (invoice && invoice.status === 'Paid') {
+            return {
+                label: 'Đã thanh toán kỳ này',
+                tone: 'bg-[#E8F5E9] text-[#2E7D32] border border-[#A5D6A7]',
+                icon: 'check_circle'
+            };
+        }
+
+        if (daysToDue < 0) {
+            return {
+                label: `Quá hạn ${Math.abs(daysToDue)} ngày`,
+                tone: 'bg-error-container text-on-error-container border border-error/20',
+                icon: 'warning'
+            };
+        }
+
+        if (daysToDue <= 3) {
+            return {
+                label: daysToDue === 0 ? 'Đến hạn hôm nay' : `Còn ${daysToDue} ngày`,
+                tone: 'bg-[#FFF3E0] text-[#E65100] border border-[#FFCC80]',
+                icon: 'schedule'
+            };
+        }
+
+        return {
+            label: `Còn ${daysToDue} ngày`,
+            tone: 'bg-primary-fixed text-primary border border-primary/15',
+            icon: 'event_available'
+        };
+    }
+
     function makeCardInlineEditable(card, targetSelector, currentValue, onSave) {
         if (card.getAttribute('data-editing') === 'true') return;
         
@@ -1185,14 +1289,32 @@
         // 5. Màn hình Quản lý hợp đồng (Contracts)
         renderContracts: function () {
             const contracts = window.QuinnState.getContracts();
-            let currentFilter = 'All';
+            const rooms = window.QuinnState.getRooms();
+            const invoices = window.QuinnState.getInvoices();
+            const activeContracts = contracts.filter(c => c.status !== 'Terminated');
+            const overdueRooms = activeContracts.filter(c => {
+                const room = rooms.find(r => r.id === c.roomId);
+                return room && getTenantPaymentStatus(room, invoices).label.startsWith('Quá hạn');
+            });
+            const dueSoonRooms = activeContracts.filter(c => {
+                const room = rooms.find(r => r.id === c.roomId);
+                if (!room) return false;
+                const due = getPaymentDueInfo(room.paymentDay);
+                return due.daysLeft !== null && due.daysLeft <= 3;
+            });
+            const totalDeposit = activeContracts.reduce((sum, c) => sum + (Number(c.deposit) || 0), 0);
 
             const filterContracts = (filterMode) => {
                 let filtered = contracts;
                 if (filterMode === 'Active') {
-                    filtered = contracts.filter(c => c.status === 'Active');
+                    filtered = contracts.filter(c => c.status === 'Active' || c.status === 'Expired');
                 } else if (filterMode === 'Expiring') {
                     filtered = contracts.filter(c => c.status === 'Expiring');
+                } else if (filterMode === 'Overdue') {
+                    filtered = contracts.filter(c => {
+                        const room = rooms.find(r => r.id === c.roomId);
+                        return room && getTenantPaymentStatus(room, invoices).label.startsWith('Quá hạn');
+                    });
                 } else if (filterMode === 'Terminated') {
                     filtered = contracts.filter(c => c.status === 'Terminated');
                 }
@@ -1203,7 +1325,7 @@
                 if (filtered.length === 0) {
                     tbody.innerHTML = `
                         <tr>
-                            <td colspan="7" class="py-8 text-center text-on-surface-variant italic">Không có hợp đồng nào phù hợp.</td>
+                            <td colspan="8" class="py-8 text-center text-on-surface-variant italic">Không có khách thuê phù hợp.</td>
                         </tr>
                     `;
                     return;
@@ -1221,21 +1343,44 @@
                         badge = `<span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-error-container text-on-error-container">Đã hết hạn</span>`;
                     }
 
+                    const room = rooms.find(r => r.id === c.roomId);
+                    const paymentDay = c.paymentDay || room?.paymentDay || 'Chưa đặt';
+                    const dueInfo = getPaymentDueInfo(paymentDay);
+                    const paymentStatus = room ? getTenantPaymentStatus(room, invoices) : {
+                        label: 'Đã chấm dứt',
+                        tone: 'bg-surface-container-high text-on-surface-variant border border-outline-variant',
+                        icon: 'block'
+                    };
+                    const tenantInitial = c.tenantName.split(' ').pop().substring(0, 2).toUpperCase();
+
                     const trHTML = `
-                        <tr class="hover:bg-surface-container-lowest/50 transition-colors bg-surface-bright">
-                            <td class="py-3 px-md font-semibold text-primary cursor-pointer hover:underline view-room-detail" data-room="${c.roomId}">${c.roomId}</td>
-                            <td class="py-3 px-md">
-                                <div class="flex items-center gap-3">
-                                    <div class="w-8 h-8 rounded-full bg-primary-fixed flex items-center justify-center text-on-primary-fixed font-bold text-xs">
-                                        ${c.tenantName.split(' ').pop().substring(0, 2).toUpperCase()}
+                        <tr class="hover:bg-surface-container-lowest/70 transition-colors bg-surface-bright align-top">
+                            <td class="py-4 px-md font-semibold text-primary cursor-pointer hover:underline view-room-detail" data-room="${c.roomId}">${c.roomId}</td>
+                            <td class="py-4 px-md min-w-[260px]">
+                                <div class="flex items-start gap-3">
+                                    <div class="w-9 h-9 rounded-full bg-primary-fixed flex items-center justify-center text-on-primary-fixed font-bold text-xs flex-shrink-0">${tenantInitial}</div>
+                                    <div>
+                                        <p class="font-semibold text-on-surface leading-snug">${c.tenantName}</p>
+                                        <p class="text-xs text-on-surface-variant mt-1">HĐ: ${c.startDate} - ${c.endDate}</p>
                                     </div>
-                                    <span class="font-medium">${c.tenantName}</span>
                                 </div>
                             </td>
-                            <td class="py-3 px-md text-on-surface-variant">${c.startDate}</td>
-                            <td class="py-3 px-md text-on-surface-variant">${c.endDate}</td>
-                            <td class="py-3 px-md text-on-surface text-right font-medium">${c.deposit.toLocaleString('vi-VN')} đ</td>
-                            <td class="py-3 px-md text-center">${badge}</td>
+                            <td class="py-4 px-md text-on-surface-variant whitespace-nowrap">${room?.tenant?.phone || '-'}</td>
+                            <td class="py-4 px-md whitespace-nowrap">
+                                <div class="font-semibold text-on-surface">${paymentDay}</div>
+                                <div class="text-xs text-on-surface-variant mt-1">Hạn kế tiếp: ${dueInfo.label}</div>
+                            </td>
+                            <td class="py-4 px-md text-right whitespace-nowrap">
+                                <div class="font-bold text-on-surface">${formatVND(room?.price || 0)}</div>
+                                <div class="text-xs text-on-surface-variant mt-1">Cọc ${formatVND(c.deposit || 0)}</div>
+                            </td>
+                            <td class="py-4 px-md text-center whitespace-nowrap">
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${paymentStatus.tone}">
+                                    <span class="material-symbols-outlined text-[16px]">${paymentStatus.icon}</span>
+                                    ${paymentStatus.label}
+                                </span>
+                            </td>
+                            <td class="py-4 px-md text-center whitespace-nowrap">${badge}</td>
                             <td class="py-3 px-md text-right">
                                 <div class="flex justify-end gap-2">
                                     <button class="p-1.5 text-on-surface-variant hover:text-primary transition-colors rounded-md hover:bg-primary-fixed/30 view-room-detail" data-room="${c.roomId}" title="Xem chi tiết phòng">
@@ -1276,21 +1421,41 @@
                     <!-- Header -->
                     <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-lg gap-4">
                         <div>
-                            <h2 class="font-headline-lg text-headline-lg font-bold text-on-surface">Quản lý Hợp đồng</h2>
-                            <p class="text-on-surface-variant font-body-md text-body-md mt-1">Quản lý và theo dõi trạng thái các hợp đồng thuê phòng.</p>
+                            <h2 class="font-headline-lg text-headline-lg font-bold text-on-surface">Khách thuê</h2>
+                            <p class="text-on-surface-variant font-body-md text-body-md mt-1">Theo dõi người thuê, hạn đóng tiền hằng tháng và trạng thái hợp đồng.</p>
                         </div>
                         <button id="add-contract-btn" class="bg-primary text-on-primary font-label-md text-label-md px-6 py-3 rounded-lg hover:bg-primary/90 transition-colors shadow-sm flex items-center gap-2 w-fit">
                             <span class="material-symbols-outlined" style="font-size: 18px;">add</span>
-                            Tạo Hợp Đồng Mới
+                            Thêm khách thuê
                         </button>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-lg mb-lg">
+                        <div class="bg-surface rounded-xl p-lg border border-outline-variant shadow-sm">
+                            <p class="text-sm text-on-surface-variant">Đang thuê</p>
+                            <p class="text-3xl font-bold text-primary mt-2">${activeContracts.length}</p>
+                        </div>
+                        <div class="bg-surface rounded-xl p-lg border border-outline-variant shadow-sm">
+                            <p class="text-sm text-on-surface-variant">Sắp đến hạn tiền</p>
+                            <p class="text-3xl font-bold text-[#E65100] mt-2">${dueSoonRooms.length}</p>
+                        </div>
+                        <div class="bg-surface rounded-xl p-lg border border-outline-variant shadow-sm">
+                            <p class="text-sm text-on-surface-variant">Quá hạn kỳ này</p>
+                            <p class="text-3xl font-bold text-error mt-2">${overdueRooms.length}</p>
+                        </div>
+                        <div class="bg-surface rounded-xl p-lg border border-outline-variant shadow-sm">
+                            <p class="text-sm text-on-surface-variant">Tổng tiền cọc</p>
+                            <p class="text-2xl font-bold text-on-surface mt-2">${formatVND(totalDeposit)}</p>
+                        </div>
                     </div>
 
                     <!-- Filters & Tabs -->
                     <div class="bg-surface-container-lowest rounded-xl border border-outline-variant p-md mb-lg flex flex-col md:flex-row gap-4 items-center justify-between shadow-sm">
                         <div class="flex items-center gap-3 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
                             <button id="tab-all" class="tab-btn px-4 py-2 rounded-full font-label-md text-label-md bg-primary text-on-primary">Tất cả</button>
-                            <button id="tab-active" class="tab-btn px-4 py-2 rounded-full font-label-md text-label-md bg-surface-container border border-outline-variant text-on-surface-variant hover:bg-surface-container-highest transition-colors">Đang hiệu lực</button>
-                            <button id="tab-expiring" class="tab-btn px-4 py-2 rounded-full font-label-md text-label-md bg-surface-container border border-outline-variant text-on-surface-variant hover:bg-surface-container-highest transition-colors">Sắp hết hạn</button>
+                            <button id="tab-active" class="tab-btn px-4 py-2 rounded-full font-label-md text-label-md bg-surface-container border border-outline-variant text-on-surface-variant hover:bg-surface-container-highest transition-colors">Đang thuê</button>
+                            <button id="tab-overdue" class="tab-btn px-4 py-2 rounded-full font-label-md text-label-md bg-surface-container border border-outline-variant text-on-surface-variant hover:bg-surface-container-highest transition-colors">Quá hạn tiền</button>
+                            <button id="tab-expiring" class="tab-btn px-4 py-2 rounded-full font-label-md text-label-md bg-surface-container border border-outline-variant text-on-surface-variant hover:bg-surface-container-highest transition-colors">Sắp hết hạn HĐ</button>
                             <button id="tab-terminated" class="tab-btn px-4 py-2 rounded-full font-label-md text-label-md bg-surface-container border border-outline-variant text-on-surface-variant hover:bg-surface-container-highest transition-colors">Đã chấm dứt</button>
                         </div>
                     </div>
@@ -1298,15 +1463,16 @@
                     <!-- Table -->
                     <div class="bg-surface-container-lowest rounded-xl border border-outline-variant overflow-hidden shadow-sm">
                         <div class="overflow-x-auto">
-                            <table class="w-full text-left border-collapse min-w-[800px]">
+                            <table class="w-full text-left border-collapse min-w-[1120px]">
                                 <thead>
                                     <tr class="bg-surface-container-low border-b border-outline-variant font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">
                                         <th class="py-4 px-md">Phòng</th>
-                                        <th class="py-4 px-md">Khách Thuê</th>
-                                        <th class="py-4 px-md">Ngày Bắt Đầu</th>
-                                        <th class="py-4 px-md">Ngày Kết Thúc</th>
-                                        <th class="py-4 px-md text-right">Tiền Cọc</th>
-                                        <th class="py-4 px-md text-center">Trạng Thái</th>
+                                        <th class="py-4 px-md">Khách thuê</th>
+                                        <th class="py-4 px-md">Liên hệ</th>
+                                        <th class="py-4 px-md">Hạn đóng tiền</th>
+                                        <th class="py-4 px-md text-right">Tiền phòng / cọc</th>
+                                        <th class="py-4 px-md text-center">Thanh toán</th>
+                                        <th class="py-4 px-md text-center">Hợp đồng</th>
                                         <th class="py-4 px-md text-right">Thao Tác</th>
                                     </tr>
                                 </thead>
@@ -1334,6 +1500,7 @@
 
             setupTab('#tab-all', 'All');
             setupTab('#tab-active', 'Active');
+            setupTab('#tab-overdue', 'Overdue');
             setupTab('#tab-expiring', 'Expiring');
             setupTab('#tab-terminated', 'Terminated');
 

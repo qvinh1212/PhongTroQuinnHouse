@@ -54,6 +54,7 @@ function toContract(row) {
         tenantName: row.tenant_name,
         startDate: formatDate(row.start_date),
         endDate: formatDate(row.end_date),
+        paymentDay: row.payment_day,
         deposit: row.deposit,
         status: row.status
     };
@@ -168,7 +169,12 @@ async function updateInvoiceStatus(id, status) {
 }
 
 async function listContracts() {
-    const { rows } = await query(`SELECT * FROM contracts ORDER BY end_date ASC NULLS LAST, room_id ASC`);
+    const { rows } = await query(`
+        SELECT c.*, r.payment_day
+        FROM contracts c
+        LEFT JOIN rooms r ON r.id = c.room_id
+        ORDER BY c.end_date ASC NULLS LAST, c.room_id ASC
+    `);
     return rows.map(toContract);
 }
 
