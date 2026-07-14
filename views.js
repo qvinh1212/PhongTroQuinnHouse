@@ -918,7 +918,15 @@
                             
                             <!-- Khách thuê hiện tại -->
                             <div class="bg-surface rounded-xl p-lg border border-outline-variant shadow-sm">
-                                <h3 class="font-title-lg text-title-lg text-on-surface mb-4">Người thuê hiện tại</h3>
+                                <div class="flex justify-between items-center mb-4">
+                                    <h3 class="font-title-lg text-title-lg text-on-surface">Người thuê hiện tại</h3>
+                                    ${room.tenant ? `
+                                        <button id="edit-tenant-btn" class="text-primary hover:text-primary-dark flex items-center gap-1 text-sm font-semibold">
+                                            <span class="material-symbols-outlined text-base">edit</span>
+                                            Sửa
+                                        </button>
+                                    ` : ''}
+                                </div>
                                 ${room.tenant ? `
                                     <div class="flex items-center gap-4 mb-4">
                                         <div class="w-12 h-12 rounded-full bg-primary-container text-on-primary flex items-center justify-center font-bold text-lg">
@@ -1008,6 +1016,13 @@
             if (dom.querySelector('#add-tenant-detail-btn')) {
                 dom.querySelector('#add-tenant-detail-btn').addEventListener('click', () => {
                     window.QuinnViews.showAddTenantModal(room.id);
+                });
+            }
+
+            // Gán sự kiện Sửa khách thuê
+            if (dom.querySelector('#edit-tenant-btn')) {
+                dom.querySelector('#edit-tenant-btn').addEventListener('click', () => {
+                    window.QuinnViews.showEditTenantModal(room.id);
                 });
             }
 
@@ -1883,6 +1898,82 @@
 
                 window.QuinnState.addTenant(roomId, name, phone, startDate, endDate, occupants, deposit, vehicles, paymentDay);
                 alert(`Đã làm hợp đồng và bàn giao phòng ${roomId} cho khách thuê ${name} thành công!`);
+                window.navigateTo('roomDetail', { roomId: roomId });
+                return true;
+            });
+        },
+
+        // Modal 2.5: Chỉnh sửa thông tin khách thuê hiện tại
+        showEditTenantModal: function (roomId) {
+            const room = window.QuinnState.getRoomById(roomId);
+            if (!room || !room.tenant) return;
+
+            const contentHTML = `
+                <div class="space-y-4">
+                    <p class="text-sm text-on-surface-variant">Chỉnh sửa thông tin khách thuê phòng <strong>${roomId}</strong>.</p>
+                    
+                    <div class="flex flex-col gap-1.5">
+                        <label class="text-xs font-semibold text-primary" for="tenant-name">Họ và tên khách thuê</label>
+                        <input id="tenant-name" class="w-full border border-outline-variant rounded py-2 px-3 outline-none focus:border-primary" type="text" value="${room.tenant.name || ''}" placeholder="Nguyễn Văn A" required />
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-xs font-semibold text-primary" for="tenant-phone">Số điện thoại</label>
+                            <input id="tenant-phone" class="w-full border border-outline-variant rounded py-2 px-3 outline-none focus:border-primary" type="text" value="${room.tenant.phone || ''}" placeholder="0901234567" required />
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-xs font-semibold text-primary" for="vehicles-count">Số lượng xe máy</label>
+                            <input id="vehicles-count" class="w-full border border-outline-variant rounded py-2 px-3 outline-none focus:border-primary" type="number" min="0" value="${room.tenant.vehicles || 1}" required />
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-xs font-semibold text-primary" for="start-date">Ngày bắt đầu hợp đồng</label>
+                            <input id="start-date" class="w-full border border-outline-variant rounded py-2 px-3 outline-none focus:border-primary" type="text" value="${room.tenant.startDate || ''}" placeholder="dd/mm/yyyy" required />
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-xs font-semibold text-primary" for="end-date">Ngày kết thúc</label>
+                            <input id="end-date" class="w-full border border-outline-variant rounded py-2 px-3 outline-none focus:border-primary" type="text" value="${room.tenant.endDate || ''}" placeholder="dd/mm/yyyy" required />
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-xs font-semibold text-primary" for="occupants-count">Số người ở</label>
+                            <input id="occupants-count" class="w-full border border-outline-variant rounded py-2 px-3 outline-none focus:border-primary" type="number" min="1" max="${room.maxOccupants}" value="${room.occupants || 1}" required />
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-xs font-semibold text-primary" for="deposit-amount">Số tiền cọc đặt trước</label>
+                            <input id="deposit-amount" class="w-full border border-outline-variant rounded py-2 px-3 outline-none focus:border-primary" type="number" min="0" value="${room.deposit || 0}" required />
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col gap-1.5">
+                        <label class="text-xs font-semibold text-primary" for="payment-day">Ngày thu tiền hàng tháng (Ví dụ: Mùng 15, Mùng 5 -> 7)</label>
+                        <input id="payment-day" class="w-full border border-outline-variant rounded py-2 px-3 outline-none focus:border-primary" type="text" placeholder="Ngày 15" value="${room.paymentDay || ''}" required />
+                    </div>
+                </div>
+            `;
+
+            createModal('Chỉnh sửa khách thuê phòng ' + roomId, contentHTML, (modalEl) => {
+                const name = modalEl.querySelector('#tenant-name').value.trim();
+                const phone = modalEl.querySelector('#tenant-phone').value.trim();
+                const vehicles = modalEl.querySelector('#vehicles-count').value;
+                const startDate = modalEl.querySelector('#start-date').value.trim();
+                const endDate = modalEl.querySelector('#end-date').value.trim();
+                const occupants = modalEl.querySelector('#occupants-count').value;
+                const deposit = modalEl.querySelector('#deposit-amount').value;
+                const paymentDay = modalEl.querySelector('#payment-day').value.trim();
+
+                if (!name || !phone || !startDate || !endDate || !paymentDay) {
+                    alert('Vui lòng điền đầy đủ các thông tin!');
+                    return false;
+                }
+
+                window.QuinnState.updateTenant(roomId, name, phone, startDate, endDate, occupants, deposit, vehicles, paymentDay);
+                alert(`Đã cập nhật thông tin khách thuê phòng ${roomId} thành công!`);
                 window.navigateTo('roomDetail', { roomId: roomId });
                 return true;
             });

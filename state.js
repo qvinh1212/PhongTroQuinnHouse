@@ -490,6 +490,21 @@
             }
         },
 
+        updateTenant: (roomId, tenantName, phone, startDate, endDate, occupants, deposit, vehicles, paymentDay) => {
+            const room = state.rooms.find(r => r.id === roomId);
+            if (room && room.tenant) {
+                room.occupants = Number(occupants);
+                room.deposit = Number(deposit);
+                room.paymentDay = paymentDay || 'Ngày 15';
+                room.tenant.name = tenantName;
+                room.tenant.phone = phone;
+                room.tenant.startDate = startDate;
+                room.tenant.endDate = endDate;
+                room.tenant.vehicles = Number(vehicles) || 1;
+                saveState();
+            }
+        },
+
         updateRoomStatus: (roomId, status) => {
             const room = state.rooms.find(r => r.id === roomId);
             if (room) {
