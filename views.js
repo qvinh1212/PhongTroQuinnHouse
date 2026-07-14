@@ -1732,6 +1732,33 @@
                                             </p>
                                         </div>
                                     </div>
+                                 </div>
+                            </div>
+
+                            <!-- Cấu hình Database & API Realtime -->
+                            <div class="bg-surface-container-lowest rounded-xl shadow-[0_4px_12px_rgba(0,0,0,0.05)] border border-outline-variant overflow-hidden hover:shadow-[0_6px_16px_rgba(0,0,0,0.08)] transition-shadow duration-200">
+                                <div class="px-container-margin py-md border-b border-surface-variant bg-surface flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-full bg-[#E8F5E9] flex items-center justify-center text-[#2E7D32]">
+                                        <span class="material-symbols-outlined">database</span>
+                                    </div>
+                                    <h3 class="font-title-lg text-title-lg font-semibold text-primary">Cấu hình Database & API Realtime</h3>
+                                </div>
+                                <div class="p-container-margin space-y-md">
+                                    <p class="text-sm text-on-surface-variant">
+                                        Nhập thông tin kết nối API Backend để đồng bộ dữ liệu của bạn lên cơ sở dữ liệu PostgreSQL và đồng bộ realtime giữa các thiết bị.
+                                    </p>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div class="flex flex-col gap-1.5">
+                                            <label class="text-xs font-semibold text-primary" for="api-url">Đường dẫn API Backend</label>
+                                            <input id="api-url" class="w-full border border-outline-variant rounded py-2 px-3 outline-none focus:border-primary" type="text" placeholder="Ví dụ: http://localhost:8080" value="${localStorage.getItem('QuinnAPIUrl') || ''}" />
+                                            <p class="text-[10px] text-on-surface-variant">Mặc định: Tự động nhận diện nếu chạy chung host, hoặc http://localhost:8080</p>
+                                        </div>
+                                        <div class="flex flex-col gap-1.5">
+                                            <label class="text-xs font-semibold text-primary" for="api-key">API Key (Nếu có)</label>
+                                            <input id="api-key" class="w-full border border-outline-variant rounded py-2 px-3 outline-none focus:border-primary" type="password" placeholder="Nhập API Key để xác thực" value="${localStorage.getItem('QuinnAPIKey') || ''}" />
+                                            <p class="text-[10px] text-on-surface-variant">Xác thực bằng Header X-API-Key</p>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
@@ -1756,6 +1783,12 @@
             dom.querySelector('#settings-form').addEventListener('submit', (e) => {
                 e.preventDefault();
 
+                const apiUrl = dom.querySelector('#api-url').value.trim();
+                const apiKey = dom.querySelector('#api-key').value.trim();
+
+                localStorage.setItem('QuinnAPIUrl', apiUrl);
+                localStorage.setItem('QuinnAPIKey', apiKey);
+
                 window.QuinnState.updateSettings(
                     settings.dienGia,
                     settings.dienMethod,
@@ -1763,8 +1796,16 @@
                     settings.nuocMethod,
                     []
                 );
-                alert('Đã lưu thay đổi cấu hình thành công!');
-                window.navigateTo('dashboard');
+
+                // Khởi tạo kết nối API và load lại state
+                window.QuinnState.initAPIConnection().then(() => {
+                    alert('Đã cấu hình kết nối Database & API thành công!');
+                    window.navigateTo('dashboard');
+                }).catch(err => {
+                    console.error(err);
+                    alert('Cấu hình thành công! Nhưng kết nối đến Backend API thất bại. Sẽ tiếp tục chạy offline bằng LocalStorage.');
+                    window.navigateTo('dashboard');
+                });
             });
 
             return dom;

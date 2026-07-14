@@ -1,6 +1,6 @@
 const { query, transaction } = require('../db/pool');
 const { notFound } = require('../utils/api-error');
-const { formatDate, todayVietnamDate } = require('../utils/dates');
+const { formatDate, todayVietnamDate, parseDate } = require('../utils/dates');
 const { publish } = require('./event-bus');
 
 function toRoom(row, tenant, utilityHistory = [], maintenanceLogs = []) {
@@ -283,6 +283,217 @@ async function emitEvent(eventType, payload) {
     publish(result.rows[0]);
 }
 
+async function syncState(stateData) {
+    await transaction(async (client) => {
+        // 1. Upsert Settings
+        const settings = stateData.settings || {};
+        await client.query(`
+            INSERT INTO settings (id, electricity_price, electricity_method, water_price, water_method, services)
+            VALUES (true, $1, $2, $3, $4, $5)
+            ON CONFLICT (id) DO UPDATE
+            SET electricity_price = EXCLUDED.electricity_price,
+                electricity_method = EXCLUDED.electricity_method,
+                water_price = EXCLUDED.water_price,
+                water_method = EXCLUDED.water_method,
+                services = EXCLUDED.services,
+                updated_at = now()
+        `, [settings.dienGia, settings.dienMethod, settings.nuocGia, settings.nuocMethod, JSON.stringify(settings.services || [])]);
+
+        // Keep track of active tenant IDs to clean up old active ones
+        const activeTenantIds = [];
+
+        // 2. Upsert Rooms & Tenants & Contracts & Utility Records & Maintenance Logs
+        for (const room of stateData.rooms || []) {
+            // Upsert Room
+            await client.query(`
+                INSERT INTO rooms (id, title, floor, price, size, status, occupants, max_occupants, deposit, payment_day, fixed_utilities, furniture)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                ON CONFLICT (id) DO UPDATE
+                SET title = EXCLUDED.title,
+                    floor = EXCLUDED.floor,
+                    price = EXCLUDED.price,
+                    size = EXCLUDED.size,
+                    status = EXCLUDED.status,
+                    occupants = EXCLUDED.occupants,
+                    max_occupants = EXCLUDED.max_occupants,
+                    deposit = EXCLUDED.deposit,
+                    payment_day = EXCLUDED.payment_day,
+                    fixed_utilities = EXCLUDED.fixed_utilities,
+                    furniture = EXCLUDED.furniture,
+                    updated_at = now()
+            `, [
+                room.id,
+                room.title,
+                Number(room.floor || 0),
+                Number(room.price || 0),
+                Number(room.size || 0),
+                room.status,
+                Number(room.occupants || 0),
+                Number(room.maxOccupants || 1),
+                Number(room.deposit || 0),
+                room.paymentDay || '',
+                room.fixedUtilities ?? null,
+                JSON.stringify(room.furniture || [])
+            ]);
+
+            // Upsert Tenant and Contract
+            if (room.tenant) {
+                const existing = await client.query(
+                    'SELECT id FROM tenants WHERE room_id = $1 AND name = $2 AND is_active = true LIMIT 1',
+                    [room.id, room.tenant.name]
+                );
+
+                let tenantId = existing.rows[0]?.id;
+                if (tenantId) {
+                    await client.query(`
+                        UPDATE tenants
+                        SET phone = $2, vehicles = $3, updated_at = now()
+                        WHERE id = $1
+                    `, [tenantId, room.tenant.phone || '', Number(room.tenant.vehicles || 0)]);
+                } else {
+                    const tenantResult = await client.query(`
+                        INSERT INTO tenants (room_id, name, phone, vehicles, is_active)
+                        VALUES ($1, $2, $3, $4, true)
+                        RETURNING id
+                    `, [room.id, room.tenant.name, room.tenant.phone || '', Number(room.tenant.vehicles || 0)]);
+                    tenantId = tenantResult.rows[0].id;
+                }
+
+                activeTenantIds.push(tenantId);
+
+                const contractId = `CON-${room.id}`;
+                await client.query(`
+                    INSERT INTO contracts (id, room_id, tenant_id, tenant_name, start_date, end_date, deposit, status)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, 'Active')
+                    ON CONFLICT (id) DO UPDATE
+                    SET tenant_id = EXCLUDED.tenant_id,
+                        tenant_name = EXCLUDED.tenant_name,
+                        start_date = EXCLUDED.start_date,
+                        end_date = EXCLUDED.end_date,
+                        deposit = EXCLUDED.deposit,
+                        updated_at = now()
+                `, [
+                    contractId,
+                    room.id,
+                    tenantId,
+                    room.tenant.name,
+                    parseDate(room.tenant.startDate),
+                    parseDate(room.tenant.endDate),
+                    Number(room.deposit || 0)
+                ]);
+            } else {
+                // If room has no tenant, mark any active tenants for this room as inactive
+                await client.query(
+                    'UPDATE tenants SET is_active = false, updated_at = now() WHERE room_id = $1 AND is_active = true',
+                    [room.id]
+                );
+                // Mark active contracts for this room as Terminated
+                await client.query(
+                    "UPDATE contracts SET status = 'Terminated', updated_at = now() WHERE room_id = $1 AND status <> 'Terminated'",
+                    [room.id]
+                );
+            }
+
+            // Upsert Utility History
+            for (const item of room.utilityHistory || []) {
+                await client.query(`
+                    INSERT INTO utility_records (room_id, period, utility_cost, recorded_date)
+                    VALUES ($1, $2, $3, $4)
+                    ON CONFLICT (room_id, period) DO UPDATE
+                    SET utility_cost = EXCLUDED.utility_cost,
+                        recorded_date = EXCLUDED.recorded_date,
+                        updated_at = now()
+                `, [room.id, item.period, Number(item.utilityCost || 0), parseDate(item.recordedDate)]);
+            }
+
+            // Upsert Maintenance Logs
+            // Remove existing maintenance logs that are not in the list anymore
+            const existingLogs = await client.query('SELECT legacy_id FROM maintenance_logs WHERE room_id = $1', [room.id]);
+            const existingLegacyIds = existingLogs.rows.map(row => row.legacy_id).filter(id => id !== null);
+            const currentLegacyIds = (room.maintenanceLogs || []).map(log => log.id).filter(id => id);
+
+            const logsToDelete = existingLegacyIds.filter(id => !currentLegacyIds.includes(id));
+            if (logsToDelete.length > 0) {
+                await client.query('DELETE FROM maintenance_logs WHERE room_id = $1 AND legacy_id = ANY($2)', [room.id, logsToDelete]);
+            }
+
+            for (const item of room.maintenanceLogs || []) {
+                const existingLog = await client.query(
+                    'SELECT id FROM maintenance_logs WHERE room_id = $1 AND legacy_id = $2 LIMIT 1',
+                    [room.id, item.id]
+                );
+                if (existingLog.rows[0]) {
+                    await client.query(`
+                        UPDATE maintenance_logs
+                        SET title = $3, log_date = $4, status = $5, updated_at = now()
+                        WHERE id = $1
+                    `, [existingLog.rows[0].id, room.id, item.title, parseDate(item.date), item.status || 'Mới']);
+                } else {
+                    await client.query(`
+                        INSERT INTO maintenance_logs (legacy_id, room_id, title, log_date, status)
+                        VALUES ($1, $2, $3, $4, $5)
+                    `, [item.id || null, room.id, item.title, parseDate(item.date), item.status || 'Mới']);
+                }
+            }
+        }
+
+        // Deactivate tenants that are no longer active globally (not in activeTenantIds)
+        if (activeTenantIds.length > 0) {
+            await client.query(
+                'UPDATE tenants SET is_active = false, updated_at = now() WHERE NOT (id = ANY($1)) AND is_active = true',
+                [activeTenantIds]
+            );
+        } else {
+            await client.query(
+                'UPDATE tenants SET is_active = false, updated_at = now() WHERE is_active = true'
+            );
+        }
+
+        // 3. Upsert Invoices
+        // Delete invoices that are no longer in the list
+        const currentInvoiceIds = (stateData.invoices || []).map(i => i.id);
+        if (currentInvoiceIds.length > 0) {
+            await client.query('DELETE FROM invoices WHERE id NOT IN (' + currentInvoiceIds.map((_, i) => `$${i + 1}`).join(', ') + ')', currentInvoiceIds);
+        } else {
+            await client.query('DELETE FROM invoices');
+        }
+
+        for (const invoice of stateData.invoices || []) {
+            await client.query(`
+                INSERT INTO invoices (id, room_id, tenant_name, period, created_date, room_price, utility_cost, services_cost, total, status, payment_date, details)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                ON CONFLICT (id) DO UPDATE
+                SET tenant_name = EXCLUDED.tenant_name,
+                    period = EXCLUDED.period,
+                    created_date = EXCLUDED.created_date,
+                    room_price = EXCLUDED.room_price,
+                    utility_cost = EXCLUDED.utility_cost,
+                    services_cost = EXCLUDED.services_cost,
+                    total = EXCLUDED.total,
+                    status = EXCLUDED.status,
+                    payment_date = EXCLUDED.payment_date,
+                    details = EXCLUDED.details,
+                    updated_at = now()
+            `, [
+                invoice.id,
+                invoice.roomId,
+                invoice.tenantName,
+                invoice.period,
+                parseDate(invoice.createdDate),
+                Number(invoice.roomPrice || 0),
+                Number(invoice.utilityCost || 0),
+                Number(invoice.servicesCost || 0),
+                Number(invoice.total || 0),
+                invoice.status,
+                parseDate(invoice.paymentDate),
+                JSON.stringify(invoice.details || {})
+            ]);
+        }
+    });
+
+    await emitEvent('state.updated', {});
+}
+
 module.exports = {
     transaction,
     listRooms,
@@ -294,5 +505,6 @@ module.exports = {
     getSettings,
     updateSettings,
     getSnapshot,
-    emitEvent
+    emitEvent,
+    syncState
 };

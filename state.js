@@ -404,18 +404,117 @@
         }
     }
 
-    // Hàm lưu trạng thái hiện tại vào LocalStorage
-    function saveState() {
+    let API_URL = localStorage.getItem('QuinnAPIUrl') || '';
+    let API_KEY = localStorage.getItem('QuinnAPIKey') || '';
+    let isConnected = false;
+    let sseSource = null;
+
+    function getEffectiveAPIUrl() {
+        if (API_URL) return API_URL + '/api/v1';
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            return 'http://localhost:8080/api/v1';
+        }
+        return window.location.origin + '/api/v1';
+    }
+
+    function getHeaders() {
+        const headers = {
+            'Content-Type': 'application/json'
+        };
+        if (API_KEY) {
+            headers['X-API-Key'] = API_KEY;
+        }
+        return headers;
+    }
+
+    async function loadStateFromServer() {
+        API_URL = localStorage.getItem('QuinnAPIUrl') || '';
+        API_KEY = localStorage.getItem('QuinnAPIKey') || '';
+
+        try {
+            const url = getEffectiveAPIUrl() + '/snapshot';
+            const response = await fetch(url, {
+                headers: getHeaders()
+            });
+            if (response.ok) {
+                const resData = await response.json();
+                if (resData && resData.data) {
+                    state = resData.data;
+                    isConnected = true;
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+                    return true;
+                }
+            }
+        } catch (e) {
+            console.warn('Không thể kết nối Backend API, sử dụng LocalStorage làm dự phòng:', e);
+        }
+
+        isConnected = false;
+        return reloadStateFromStorage();
+    }
+
+    function setupRealtimeSSE(onUpdate) {
+        if (sseSource) {
+            sseSource.close();
+            sseSource = null;
+        }
+
+        if (!isConnected) return;
+
+        try {
+            const baseUrl = getEffectiveAPIUrl().replace(/\/api\/v1$/, '');
+            const sseUrl = baseUrl + '/events' + (API_KEY ? `?api_key=${encodeURIComponent(API_KEY)}` : '');
+            
+            sseSource = new EventSource(sseUrl);
+            
+            const handleUpdate = async () => {
+                console.log('Realtime update detected, reloading state...');
+                const success = await loadStateFromServer();
+                if (success && typeof onUpdate === 'function') {
+                    onUpdate();
+                }
+            };
+
+            sseSource.addEventListener('state.updated', handleUpdate);
+            sseSource.addEventListener('room.updated', handleUpdate);
+            sseSource.addEventListener('invoice.updated', handleUpdate);
+
+            sseSource.onerror = (err) => {
+                console.warn('Realtime connection error, attempting to reconnect...');
+            };
+        } catch (e) {
+            console.error('Không thể kết nối Realtime SSE:', e);
+        }
+    }
+
+    async function initAPIConnection() {
+        return loadStateFromServer();
+    }
+
+    // Hàm lưu trạng thái hiện tại vào LocalStorage và Backend
+    async function saveState() {
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
             window.dispatchEvent(new CustomEvent('quinn-state-updated'));
+
+            if (isConnected) {
+                const url = getEffectiveAPIUrl() + '/sync';
+                await fetch(url, {
+                    method: 'POST',
+                    headers: getHeaders(),
+                    body: JSON.stringify(state)
+                });
+            }
         } catch (e) {
-            console.error('Không thể lưu state vào LocalStorage:', e);
+            console.error('Không thể lưu state:', e);
         }
     }
 
     // API quản lý trạng thái xuất ra ngoài
     window.QuinnState = {
+        loadStateFromServer: loadStateFromServer,
+        setupRealtimeSSE: setupRealtimeSSE,
+        initAPIConnection: initAPIConnection,
         getCurrentPeriod: getCurrentPeriod,
 
         getStorageKey: () => STORAGE_KEY,

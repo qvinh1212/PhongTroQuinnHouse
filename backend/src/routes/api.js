@@ -54,6 +54,15 @@ router.get('/snapshot', async (req, res, next) => {
     }
 });
 
+router.post('/sync', async (req, res, next) => {
+    try {
+        await service.syncState(req.body);
+        res.json({ success: true });
+    } catch (error) {
+        next(error);
+    }
+});
+
 router.get('/rooms', async (req, res, next) => {
     try {
         res.json({ data: await service.listRooms() });

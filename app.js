@@ -142,7 +142,15 @@
     }
 
     // Thiết lập ứng dụng khi tải trang hoàn tất
-    window.addEventListener('DOMContentLoaded', () => {
+    window.addEventListener('DOMContentLoaded', async () => {
+        // Load state từ server trước khi chạy router
+        if (window.QuinnState && typeof window.QuinnState.loadStateFromServer === 'function') {
+            await window.QuinnState.loadStateFromServer();
+            window.QuinnState.setupRealtimeSSE(() => {
+                router();
+            });
+        }
+
         // Gán sự kiện click cho các thẻ điều hướng trên Sidebar
         const sidebar = document.querySelector('aside');
         if (sidebar) {
