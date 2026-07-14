@@ -414,7 +414,7 @@ async function syncState(stateData) {
 
             const logsToDelete = existingLegacyIds.filter(id => !currentLegacyIds.includes(id));
             if (logsToDelete.length > 0) {
-                await client.query('DELETE FROM maintenance_logs WHERE room_id = $1 AND legacy_id = ANY($2)', [room.id, logsToDelete]);
+                await client.query('DELETE FROM maintenance_logs WHERE room_id = $1 AND legacy_id = ANY($2::integer[])', [room.id, logsToDelete]);
             }
 
             for (const item of room.maintenanceLogs || []) {
@@ -440,7 +440,7 @@ async function syncState(stateData) {
         // Deactivate tenants that are no longer active globally (not in activeTenantIds)
         if (activeTenantIds.length > 0) {
             await client.query(
-                'UPDATE tenants SET is_active = false, updated_at = now() WHERE NOT (id = ANY($1)) AND is_active = true',
+                'UPDATE tenants SET is_active = false, updated_at = now() WHERE NOT (id = ANY($1::uuid[])) AND is_active = true',
                 [activeTenantIds]
             );
         } else {

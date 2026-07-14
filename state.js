@@ -499,14 +499,18 @@
 
             if (isConnected) {
                 const url = getEffectiveAPIUrl() + '/sync';
-                await fetch(url, {
+                const response = await fetch(url, {
                     method: 'POST',
                     headers: getHeaders(),
                     body: JSON.stringify(state)
                 });
+                if (!response.ok) {
+                    const errorMsg = await response.text();
+                    throw new Error(`Đồng bộ thất bại: ${response.status} - ${errorMsg}`);
+                }
             }
         } catch (e) {
-            console.error('Không thể lưu state:', e);
+            console.error('Không thể lưu state hoặc đồng bộ Database:', e);
         }
     }
 
