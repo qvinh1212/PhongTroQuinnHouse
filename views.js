@@ -240,6 +240,8 @@
                 closeModal();
             }
         });
+
+        return modalElement;
     }
 
     // Định nghĩa QuinnViews
@@ -890,7 +892,7 @@
                                                     <span class="material-symbols-outlined text-[16px] text-outline opacity-0 group-hover:opacity-100 transition-opacity">edit</span>
                                                 </p>
                                                 <p class="text-primary text-xl font-bold mt-1 fixed-utilities-value">${formatVND(room.fixedUtilities)} / tháng</p>
-                                                <p class="text-xs text-on-surface-variant mt-0.5">Không tính theo chỉ số sử dụng thực tế (Áp dụng cho phòng nội bộ/chủ nhà).</p>
+                                                <p class="text-xs text-on-surface-variant mt-0.5">Áp dụng cho phòng nội bộ/chủ nhà. Nhấp để sửa, nhập 0 để hủy cố định.</p>
                                             </div>
                                         </div>
                                     ` : `
@@ -1786,6 +1788,13 @@
                             <p class="text-xs text-on-surface-variant mt-1">Phí thuê phòng: 0 đ (Miễn phí)</p>
                         </div>
                         <p class="text-xs text-on-surface-variant italic">Nhấn "Đồng ý" để xác nhận tạo hóa đơn mà không cần ghi số.</p>
+                        
+                        <div class="mt-4 pt-3 border-t border-outline-variant flex justify-center">
+                            <button id="cancel-fixed-util-btn" class="text-xs text-error hover:underline flex items-center gap-1 font-semibold" type="button">
+                                <span class="material-symbols-outlined text-[16px]">cancel</span>
+                                Hủy áp dụng cố định (Chuyển về nhập số thực tế)
+                            </button>
+                        </div>
                     </div>
                 `;
             } else {
@@ -1801,7 +1810,7 @@
                 `;
             }
 
-            createModal('Ghi nhận điện nước phòng ' + roomId, contentHTML, (modalEl) => {
+            const modalEl = createModal('Ghi nhận điện nước phòng ' + roomId, contentHTML, (modalEl) => {
                 let utilityCostVal = 0;
 
                 if (!room.fixedUtilities) {
@@ -1822,6 +1831,19 @@
                 }
                 return false;
             });
+
+            if (modalEl && modalEl.querySelector('#cancel-fixed-util-btn')) {
+                modalEl.querySelector('#cancel-fixed-util-btn').addEventListener('click', () => {
+                    if (confirm('Bạn có chắc chắn muốn hủy phí điện nước cố định cho phòng này và chuyển về nhập số thực tế không?')) {
+                        window.QuinnState.updateRoomFixedUtilities(room.id, 0);
+                        modalEl.querySelector('.cancel-btn').click();
+                        window.navigateTo('roomDetail', { roomId: room.id });
+                        setTimeout(() => {
+                            window.QuinnViews.showRecordUtilityModal(room.id);
+                        }, 200);
+                    }
+                });
+            }
         },
 
         // Modal 2: Thêm khách thuê mới (Nhận phòng & Làm hợp đồng)
