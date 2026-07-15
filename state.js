@@ -445,6 +445,7 @@
                     state = resData.data;
                     isConnected = true;
                     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+                    updateConnectionStatusUI();
                     return true;
                 }
             }
@@ -453,7 +454,22 @@
         }
 
         isConnected = false;
-        return reloadStateFromStorage();
+        const res = reloadStateFromStorage();
+        updateConnectionStatusUI();
+        return res;
+    }
+
+    function updateConnectionStatusUI() {
+        const badge = document.getElementById('db-status-badge');
+        if (!badge) return;
+
+        if (isConnected) {
+            badge.className = "flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold select-none bg-[#E8F5E9] text-[#2E7D32] border border-[#A5D6A7]";
+            badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-[#4CAF50]"></span> Đã kết nối Database`;
+        } else {
+            badge.className = "flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold select-none bg-[#FFF3E0] text-[#E65100] border border-[#FFE0B2]";
+            badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-[#FF9800]"></span> Chạy ngoại tuyến (Offline)`;
+        }
     }
 
     function setupRealtimeSSE(onUpdate) {
@@ -521,6 +537,7 @@
     window.QuinnState = {
         loadStateFromServer: loadStateFromServer,
         setupRealtimeSSE: setupRealtimeSSE,
+        updateConnectionStatusUI: updateConnectionStatusUI,
         initAPIConnection: initAPIConnection,
         getCurrentPeriod: getCurrentPeriod,
 

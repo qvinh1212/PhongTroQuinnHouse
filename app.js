@@ -149,6 +149,7 @@
             window.QuinnState.setupRealtimeSSE(() => {
                 router();
             });
+            window.QuinnState.updateConnectionStatusUI();
         }
 
         // Gán sự kiện click cho các thẻ điều hướng trên Sidebar
