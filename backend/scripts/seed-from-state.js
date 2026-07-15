@@ -199,36 +199,41 @@ async function upsertInvoices(client, invoices) {
     }
 }
 
-async function main() {
+async function runSeeder(client) {
+    const state = loadLegacyState();
+    await upsertSettings(client, state.settings);
+    for (const room of state.rooms) {
+        await upsertRoom(client, room);
+        await upsertTenantAndContract(client, room);
+        await upsertUtilityHistory(client, room);
+        await upsertMaintenance(client, room);
+    }
+    await upsertInvoices(client, state.invoices);
+}
+
+if (require.main === module) {
     if (!process.env.DATABASE_URL) {
         throw new Error('DATABASE_URL is required');
     }
-
-    const state = loadLegacyState();
     const client = new Client({ connectionString: process.env.DATABASE_URL });
-    await client.connect();
-
-    try {
-        await client.query('BEGIN');
-        await upsertSettings(client, state.settings);
-        for (const room of state.rooms) {
-            await upsertRoom(client, room);
-            await upsertTenantAndContract(client, room);
-            await upsertUtilityHistory(client, room);
-            await upsertMaintenance(client, room);
-        }
-        await upsertInvoices(client, state.invoices);
-        await client.query('COMMIT');
-        console.log(`Seeded ${state.rooms.length} rooms and ${state.invoices.length} invoices from state.js`);
-    } catch (error) {
-        await client.query('ROLLBACK');
-        throw error;
-    } finally {
-        await client.end();
-    }
+    client.connect()
+        .then(async () => {
+            try {
+                await client.query('BEGIN');
+                await runSeeder(client);
+                await client.query('COMMIT');
+                console.log(`Seeded rooms and invoices from state.js`);
+            } catch (error) {
+                await client.query('ROLLBACK');
+                throw error;
+            } finally {
+                await client.end();
+            }
+        })
+        .catch(error => {
+            console.error(error);
+            process.exit(1);
+        });
 }
 
-main().catch(error => {
-    console.error(error);
-    process.exit(1);
-});
+module.exports = { runSeeder };

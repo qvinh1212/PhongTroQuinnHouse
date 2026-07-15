@@ -35,8 +35,33 @@ app.use('/api/v1', eventsRouter);
 app.use('/api/v1', apiRouter);
 app.use(errorHandler);
 
-const server = app.listen(config.port, () => {
+const server = app.listen(config.port, async () => {
     console.log(`Quinn House API listening on port ${config.port}`);
+    
+    // Auto-seed if database rooms table is empty
+    try {
+        const roomsCountRes = await pool.query('SELECT COUNT(*) FROM rooms');
+        const count = parseInt(roomsCountRes.rows[0].count, 10);
+        if (count === 0) {
+            console.log('Database rooms table is empty. Running auto-seeder...');
+            const { runSeeder } = require('../scripts/seed-from-state.js');
+            
+            const client = await pool.connect();
+            try {
+                await client.query('BEGIN');
+                await runSeeder(client);
+                await client.query('COMMIT');
+                console.log('Database auto-seeded successfully!');
+            } catch (seedErr) {
+                await client.query('ROLLBACK');
+                console.error('Auto-seed transaction failed, rolled back:', seedErr);
+            } finally {
+                client.release();
+            }
+        }
+    } catch (dbErr) {
+        console.error('Failed to run auto-seed check:', dbErr);
+    }
 });
 
 function shutdown() {
