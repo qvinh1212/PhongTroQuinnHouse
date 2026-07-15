@@ -44,6 +44,18 @@ function parse(schema, body) {
     return result.data;
 }
 
+const { config } = require('../config');
+
+router.get('/debug-status', (req, res) => {
+    const key = config.apiKey || '';
+    res.json({
+        nodeEnv: config.nodeEnv,
+        apiKeyConfigured: !!key,
+        apiKeyLength: key.length,
+        apiKeyHint: key.length > 3 ? `${key.substring(0, 3)}***` : (key.length > 0 ? '***' : '')
+    });
+});
+
 router.use(requireApiKey);
 
 router.get('/snapshot', async (req, res, next) => {
