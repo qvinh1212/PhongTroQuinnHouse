@@ -414,6 +414,9 @@
         if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
             return 'http://localhost:8080/api/v1';
         }
+        if (window.location.hostname === 'phongtro.qbo.io.vn') {
+            return 'https://api-phongtro.qbo.io.vn/api/v1';
+        }
         return window.location.origin + '/api/v1';
     }
 

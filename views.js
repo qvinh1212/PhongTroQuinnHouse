@@ -1702,6 +1702,8 @@
         // 7. Màn hình Cài đặt đơn giá & dịch vụ (Settings)
         renderSettings: function () {
             const settings = window.QuinnState.getSettings();
+            const defaultUrl = window.location.hostname === 'phongtro.qbo.io.vn' ? 'https://api-phongtro.qbo.io.vn' : '';
+            const currentUrl = localStorage.getItem('QuinnAPIUrl') || defaultUrl;
 
             const html = `
                 <div>
@@ -1750,7 +1752,7 @@
                                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div class="flex flex-col gap-1.5">
                                             <label class="text-xs font-semibold text-primary" for="api-url">Đường dẫn API Backend</label>
-                                            <input id="api-url" class="w-full border border-outline-variant rounded py-2 px-3 outline-none focus:border-primary" type="text" placeholder="Ví dụ: http://localhost:8080" value="${localStorage.getItem('QuinnAPIUrl') || ''}" />
+                                            <input id="api-url" class="w-full border border-outline-variant rounded py-2 px-3 outline-none focus:border-primary" type="text" placeholder="Ví dụ: http://localhost:8080" value="${currentUrl}" />
                                             <p class="text-[10px] text-on-surface-variant">Mặc định: Tự động nhận diện nếu chạy chung host, hoặc http://localhost:8080</p>
                                         </div>
                                         <div class="flex flex-col gap-1.5">
