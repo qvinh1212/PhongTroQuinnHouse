@@ -1800,8 +1800,12 @@
                 );
 
                 // Khởi tạo kết nối API và load lại state
-                window.QuinnState.initAPIConnection().then(() => {
-                    alert('Đã cấu hình kết nối Database & API thành công!');
+                window.QuinnState.initAPIConnection().then((success) => {
+                    if (success) {
+                        alert('Đã kết nối và đồng bộ Database thành công! Dữ liệu đã được tải về.');
+                    } else {
+                        alert('Không thể kết nối đến Backend API bằng thông tin cấu hình này. Hệ thống sẽ tiếp tục chạy ngoại tuyến (Offline) bằng LocalStorage. Vui lòng kiểm tra lại API Key hoặc đảm bảo Backend đã được redeploy.');
+                    }
                     window.navigateTo('dashboard');
                 }).catch(err => {
                     console.error(err);
