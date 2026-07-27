@@ -79,8 +79,19 @@
         return periods;
     }
 
+    // Sinh mã hóa đơn duy nhất, tránh trùng do Math.random
+    function generateInvoiceId() {
+        const used = new Set((state && state.invoices ? state.invoices : []).map(i => i.id));
+        let candidate;
+        do {
+            candidate = 'INV' + Math.floor(1000 + Math.random() * 9000);
+        } while (used.has(candidate));
+        return candidate;
+    }
+
     function getVietnamDateEpoch(dateString) {
-        const parts = dateString.split('/');
+        if (!dateString) return null;
+        const parts = String(dateString).split('/');
         if (parts.length !== 3) return null;
 
         const day = Number(parts[0]);
@@ -99,7 +110,7 @@
                 return true;
             }
         } catch (e) {
-            console.error('KhÃ´ng thá»ƒ refresh state tá»« LocalStorage:', e);
+            console.error('Không thể refresh state từ LocalStorage:', e);
         }
         return false;
     }
@@ -430,6 +441,9 @@
         return headers;
     }
 
+    // Version cua state ma phien nay dang dua tren. Null = chua biet.
+    let knownStateVersion = null;
+
     async function loadStateFromServer() {
         API_URL = localStorage.getItem('QuinnAPIUrl') || '';
         API_KEY = localStorage.getItem('QuinnAPIKey') || '';
@@ -443,6 +457,8 @@
                 const resData = await response.json();
                 if (resData && resData.data) {
                     state = resData.data;
+                    // Ghi nho version vua doc de gui lai khi sync (optimistic locking)
+                    knownStateVersion = resData.data.stateVersion || null;
                     isConnected = true;
                     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
                     updateConnectionStatusUI();
@@ -518,18 +534,38 @@
 
             if (isConnected) {
                 const url = getEffectiveAPIUrl() + '/sync';
+                const headers = getHeaders();
+                // Gui version state ma phien nay dang dua tren de server phat hien ghi de
+                if (knownStateVersion) headers['If-Match'] = knownStateVersion;
+
                 const response = await fetch(url, {
                     method: 'POST',
-                    headers: getHeaders(),
+                    headers: headers,
                     body: JSON.stringify(state)
                 });
+
+                // 409: phien khac da ghi truoc. Tai lai ban moi nhat thay vi ghi de du lieu cua ho.
+                if (response.status === 409) {
+                    knownStateVersion = null;
+                    await loadStateFromServer();
+                    window.dispatchEvent(new CustomEvent('quinn-state-conflict'));
+                    console.warn('Dữ liệu đã được thay đổi ở phiên khác. Đã tải lại bản mới nhất.');
+                    return false;
+                }
+
                 if (!response.ok) {
                     const errorMsg = await response.text();
                     throw new Error(`Đồng bộ thất bại: ${response.status} - ${errorMsg}`);
                 }
+
+                const resBody = await response.json().catch(() => null);
+                if (resBody && resBody.version) knownStateVersion = resBody.version;
             }
+
+            return true;
         } catch (e) {
             console.error('Không thể lưu state hoặc đồng bộ Database:', e);
+            return false;
         }
     }
 
@@ -695,7 +731,11 @@
 
         recordUtilities: (roomId, utilityCost, period) => {
             const room = state.rooms.find(r => r.id === roomId);
-            if (!room || room.status !== 'rented') return null;
+            if (!room || room.status !== 'rented' || !room.tenant) return null;
+
+            // Không tạo trùng hóa đơn cho cùng một kỳ của cùng một phòng
+            const existingInvoice = state.invoices.find(i => i.roomId === roomId && i.period === period && i.status !== 'Cancelled');
+            if (existingInvoice) return null;
 
             let utilCost = Number(utilityCost) || 0;
 
@@ -709,15 +749,17 @@
 
             const dateString = getVietnamDateString();
             
-            room.utilityHistory.unshift({
-                period: period,
-                utilityCost: utilCost,
-                recordedDate: dateString
-            });
+            const historyEntry = { period: period, utilityCost: utilCost, recordedDate: dateString };
+            const historyIndex = room.utilityHistory.findIndex(h => h.period === period);
+            if (historyIndex >= 0) {
+                room.utilityHistory[historyIndex] = historyEntry;
+            } else {
+                room.utilityHistory.unshift(historyEntry);
+            }
 
             let servicesCost = 0;
 
-            const invoiceId = 'INV' + Math.floor(1000 + Math.random() * 9000);
+            const invoiceId = generateInvoiceId();
             const newInvoice = {
                 id: invoiceId,
                 roomId: roomId,
@@ -743,6 +785,7 @@
         updateRecordedUtilityCost: (roomId, period, amount) => {
             const room = state.rooms.find(r => r.id === roomId);
             if (room) {
+                if (!room.utilities) room.utilities = {};
                 room.utilities.utilityCost = Number(amount);
                 const log = room.utilityHistory.find(h => h.period === period);
                 if (log) {

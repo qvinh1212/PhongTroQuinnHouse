@@ -8,9 +8,20 @@
         return div.firstChild;
     }
 
+    // Escape dữ liệu người dùng trước khi nội suy vào template HTML (chống XSS)
+    function escapeHtml(value) {
+        if (value === null || value === undefined) return '';
+        return String(value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
     // Định dạng tiền tệ VND
     function formatVND(amount) {
-        return amount.toLocaleString('vi-VN') + ' đ';
+        return Number(amount || 0).toLocaleString('vi-VN') + ' đ';
     }
 
     // Helper tự động tạo trường nhập liệu chỉnh sửa inline trên thẻ thông tin phòng
@@ -761,7 +772,7 @@
             const settings = window.QuinnState.getSettings();
             
             if (!room) {
-                return parseHTML(`<div class="p-8 text-center text-error font-bold">Phòng ${roomId} không tồn tại!</div>`);
+                return parseHTML(`<div class="p-8 text-center text-error font-bold">Phòng ${escapeHtml(roomId)} không tồn tại!</div>`);
             }
 
             const invoices = window.QuinnState.getInvoices().filter(i => i.roomId === roomId);
@@ -864,7 +875,7 @@
                                 </h3>
                                 <div class="flex flex-wrap gap-2">
                                     ${room.furniture.map(item => `
-                                        <span class="px-3 py-1 bg-surface-container rounded-full text-on-surface font-body-md text-body-md border border-outline-variant">${item}</span>
+                                        <span class="px-3 py-1 bg-surface-container rounded-full text-on-surface font-body-md text-body-md border border-outline-variant">${escapeHtml(item)}</span>
                                     `).join('')}
                                 </div>
                             </div>
@@ -932,21 +943,21 @@
                                 ${room.tenant ? `
                                     <div class="flex items-center gap-4 mb-4">
                                         <div class="w-12 h-12 rounded-full bg-primary-container text-on-primary flex items-center justify-center font-bold text-lg">
-                                            ${room.tenant.name.split(' ').pop().substring(0, 2).toUpperCase()}
+                                            ${escapeHtml(room.tenant.name.split(' ').pop().substring(0, 2).toUpperCase())}
                                         </div>
                                         <div>
-                                            <p class="font-body-md text-body-md font-semibold text-on-surface">${room.tenant.name}</p>
-                                            <p class="font-body-md text-body-md text-on-surface-variant">${room.tenant.phone}</p>
+                                            <p class="font-body-md text-body-md font-semibold text-on-surface">${escapeHtml(room.tenant.name)}</p>
+                                            <p class="font-body-md text-body-md text-on-surface-variant">${escapeHtml(room.tenant.phone)}</p>
                                         </div>
                                     </div>
                                     <div class="pt-4 border-t border-outline-variant text-sm space-y-2">
                                         <div class="flex justify-between">
                                             <span class="text-on-surface-variant">Ngày vào:</span>
-                                            <span class="text-on-surface font-medium">${room.tenant.startDate}</span>
+                                            <span class="text-on-surface font-medium">${escapeHtml(room.tenant.startDate)}</span>
                                         </div>
                                         <div class="flex justify-between">
                                             <span class="text-on-surface-variant">Ngày hết hạn hợp đồng:</span>
-                                            <span class="text-on-surface font-medium">${room.tenant.endDate}</span>
+                                            <span class="text-on-surface font-medium">${escapeHtml(room.tenant.endDate)}</span>
                                         </div>
                                         <div class="flex justify-between">
                                             <span class="text-on-surface-variant">Số lượng xe máy:</span>
@@ -998,8 +1009,8 @@
                                     ${room.maintenanceLogs.length > 0 ? room.maintenanceLogs.map(log => `
                                         <div class="relative pl-6">
                                             <span class="absolute -left-1.5 top-1 w-3 h-3 rounded-full ${log.status === 'Mới' ? 'bg-error' : 'bg-[#4CAF50]'}"></span>
-                                            <p class="font-label-md text-label-md text-on-surface">${log.title}</p>
-                                            <p class="text-xs text-on-surface-variant mt-0.5">${log.date} • Trạng thái: ${log.status}</p>
+                                            <p class="font-label-md text-label-md text-on-surface">${escapeHtml(log.title)}</p>
+                                            <p class="text-xs text-on-surface-variant mt-0.5">${escapeHtml(log.date)} • Trạng thái: ${escapeHtml(log.status)}</p>
                                         </div>
                                     `).join('') : `
                                         <p class="text-on-surface-variant italic text-sm pl-4">Không có nhật ký bảo trì.</p>
@@ -1235,7 +1246,7 @@
                                         return `
                                             <tr class="hover:bg-primary-fixed-dim/5 transition-colors bg-surface-bright">
                                                 <td class="p-4 font-semibold text-primary cursor-pointer hover:underline" onclick="window.navigateTo('roomDetail', { roomId: '${inv.roomId}' })">${inv.roomId}</td>
-                                                <td class="p-3 font-medium">${inv.tenantName}</td>
+                                                <td class="p-3 font-medium">${escapeHtml(inv.tenantName)}</td>
                                                 <td class="p-3 text-right font-bold ${inv.status !== 'Paid' ? 'text-error' : ''}">${inv.total.toLocaleString('vi-VN')}</td>
                                                 <td class="p-3 text-right text-on-surface-variant">${inv.roomId === '101' ? `${(inv.utilityCost || 0).toLocaleString('vi-VN')} (Cố định)` : (inv.utilityCost || 0).toLocaleString('vi-VN')}</td>
                                                 <td class="p-3 text-on-surface-variant">${inv.createdDate}</td>
@@ -1377,7 +1388,7 @@
                                 <div class="flex items-start gap-3">
                                     <div class="w-9 h-9 rounded-full bg-primary-fixed flex items-center justify-center text-on-primary-fixed font-bold text-xs flex-shrink-0">${tenantInitial}</div>
                                     <div>
-                                        <p class="font-semibold text-on-surface leading-snug">${c.tenantName}</p>
+                                        <p class="font-semibold text-on-surface leading-snug">${escapeHtml(c.tenantName)}</p>
                                         <p class="text-xs text-on-surface-variant mt-1">HĐ: ${c.startDate} - ${c.endDate}</p>
                                     </div>
                                 </div>
@@ -1671,7 +1682,7 @@
                                         return `
                                             <tr class="hover:bg-surface-container-lowest transition-colors bg-surface-bright">
                                                 <td class="p-md font-semibold text-primary cursor-pointer hover:underline" onclick="window.navigateTo('roomDetail', { roomId: '${room.id}' })">${room.id}</td>
-                                                <td class="p-md font-medium">${room.tenant.name}</td>
+                                                <td class="p-md font-medium">${escapeHtml(room.tenant.name)}</td>
                                                 <td class="p-md">${utilityText}</td>
                                                 <td class="p-md">${totalCalcText}</td>
                                                 <td class="p-md">${statusChip}</td>
@@ -1821,6 +1832,10 @@
         showRecordUtilityModal: function (roomId) {
             const room = window.QuinnState.getRoomById(roomId);
             if (!room) return;
+            if (!room.tenant) {
+                alert('Phòng này chưa có khách thuê nên không thể chốt tiền điện nước.');
+                return;
+            }
 
             const period = window.QuinnState.getCurrentPeriod();
 
@@ -1828,7 +1843,7 @@
             if (room.fixedUtilities) {
                 contentHTML = `
                     <div class="space-y-4">
-                        <p class="text-sm text-on-surface-variant">Ghi nhận hóa đơn cho <strong>phòng ${roomId}</strong> (Khách thuê: ${room.tenant.name}) - Kỳ <strong>${period}</strong>.</p>
+                        <p class="text-sm text-on-surface-variant">Ghi nhận hóa đơn cho <strong>phòng ${escapeHtml(roomId)}</strong> (Khách thuê: ${escapeHtml(room.tenant.name)}) - Kỳ <strong>${period}</strong>.</p>
                         <div class="bg-surface-container-low p-4 border border-outline-variant rounded-lg">
                             <p class="font-semibold text-primary text-base">Phí điện nước cố định hàng tháng:</p>
                             <p class="text-2xl font-bold text-on-surface mt-2">${formatVND(room.fixedUtilities)}</p>
@@ -1847,11 +1862,11 @@
             } else {
                 contentHTML = `
                     <div class="space-y-4">
-                        <p class="text-sm text-on-surface-variant">Ghi nhận tiền điện nước tháng này cho <strong>phòng ${roomId}</strong> (Khách thuê: ${room.tenant.name}) - Kỳ <strong>${period}</strong>.</p>
+                        <p class="text-sm text-on-surface-variant">Ghi nhận tiền điện nước tháng này cho <strong>phòng ${escapeHtml(roomId)}</strong> (Khách thuê: ${escapeHtml(room.tenant.name)}) - Kỳ <strong>${period}</strong>.</p>
                         
                         <div class="flex flex-col gap-2">
                             <label class="text-xs font-semibold text-primary" for="utility-cost">Tiền điện nước tháng này (đ)</label>
-                            <input id="utility-cost" class="w-full border border-outline-variant rounded py-2 px-3 outline-none focus:border-primary" type="number" placeholder="Ví dụ: 450000" value="${room.utilities.utilityCost || ''}" required />
+                            <input id="utility-cost" class="w-full border border-outline-variant rounded py-2 px-3 outline-none focus:border-primary" type="number" placeholder="Ví dụ: 450000" value="${room.utilities?.utilityCost || ''}" required />
                         </div>
                     </div>
                 `;
@@ -1903,7 +1918,7 @@
 
             const contentHTML = `
                 <div class="space-y-4">
-                    <p class="text-sm text-on-surface-variant">Thực hiện ký hợp đồng và giao phòng <strong>${roomId}</strong> (Giá: ${room.price.toLocaleString('vi-VN')} đ/tháng).</p>
+                    <p class="text-sm text-on-surface-variant">Thực hiện ký hợp đồng và giao phòng <strong>${escapeHtml(roomId)}</strong> (Giá: ${room.price.toLocaleString('vi-VN')} đ/tháng).</p>
                     
                     <div class="flex flex-col gap-1.5">
                         <label class="text-xs font-semibold text-primary" for="tenant-name">Họ và tên khách thuê</label>
@@ -1979,7 +1994,7 @@
 
             const contentHTML = `
                 <div class="space-y-4">
-                    <p class="text-sm text-on-surface-variant">Chỉnh sửa thông tin khách thuê phòng <strong>${roomId}</strong>.</p>
+                    <p class="text-sm text-on-surface-variant">Chỉnh sửa thông tin khách thuê phòng <strong>${escapeHtml(roomId)}</strong>.</p>
                     
                     <div class="flex flex-col gap-1.5">
                         <label class="text-xs font-semibold text-primary" for="tenant-name">Họ và tên khách thuê</label>

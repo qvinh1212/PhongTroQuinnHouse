@@ -1,5 +1,5 @@
 const { query, transaction } = require('../db/pool');
-const { notFound } = require('../utils/api-error');
+const { notFound, conflict } = require('../utils/api-error');
 const { formatDate, todayVietnamDate, parseDate } = require('../utils/dates');
 const { publish } = require('./event-bus');
 
@@ -217,16 +217,29 @@ async function updateSettings(data) {
     };
 }
 
+// Version cua toan bo state, dung de phat hien ghi de dong thoi (optimistic locking).
+async function readStateVersion(client) {
+    const runner = client ? client.query.bind(client) : query;
+    const { rows } = await runner('SELECT state_version FROM settings WHERE id = true');
+    return rows[0]?.state_version || null;
+}
+
+function nextStateVersion() {
+    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 async function getSnapshot() {
-    const [settings, rooms, invoices, contracts] = await Promise.all([
+    const [settings, rooms, invoices, contracts, stateVersion] = await Promise.all([
         getSettings(),
         listRooms(),
         listInvoices(),
-        listContracts()
+        listContracts(),
+        readStateVersion()
     ]);
 
     return {
         version: 'api_v1',
+        stateVersion,
         settings,
         rooms,
         invoices,
@@ -283,8 +296,25 @@ async function emitEvent(eventType, payload) {
     publish(result.rows[0]);
 }
 
-async function syncState(stateData) {
+async function syncState(stateData, options = {}) {
+    const { baseVersion = null, force = false } = options;
+    let committedVersion = null;
+
     await transaction(async (client) => {
+        // Serialize cac lan sync: khoa hang settings truoc khi doc version.
+        // Hai request dong thoi se xep hang tai day thay vi ghi de len nhau.
+        const locked = await client.query('SELECT state_version FROM settings WHERE id = true FOR UPDATE');
+        const currentVersion = locked.rows[0]?.state_version || null;
+
+        // Optimistic locking: client phai gui version ma no da doc.
+        // Neu version da doi -> co thiet bi khac ghi truoc -> tu choi thay vi ghi de.
+        if (!force && baseVersion && currentVersion && baseVersion !== currentVersion) {
+            throw conflict('State da bi thay doi boi phien khac. Hay tai lai du lieu moi nhat truoc khi luu.', {
+                expectedVersion: baseVersion,
+                currentVersion
+            });
+        }
+
         // 1. Upsert Settings
         const settings = stateData.settings || {};
         await client.query(`
@@ -451,9 +481,12 @@ async function syncState(stateData) {
 
         // 3. Upsert Invoices
         // Delete invoices that are no longer in the list
-        const currentInvoiceIds = (stateData.invoices || []).map(i => i.id);
+        const currentInvoiceIds = (stateData.invoices || [])
+            .map(i => i && i.id)
+            .filter(id => typeof id === 'string' && id.length > 0);
         if (currentInvoiceIds.length > 0) {
-            await client.query('DELETE FROM invoices WHERE id NOT IN (' + currentInvoiceIds.map((_, i) => `$${i + 1}`).join(', ') + ')', currentInvoiceIds);
+            // Tham so hoa bang mang text[] thay vi noi chuoi ID vao cau SQL.
+            await client.query('DELETE FROM invoices WHERE NOT (id = ANY($1::text[]))', [currentInvoiceIds]);
         } else {
             await client.query('DELETE FROM invoices');
         }
@@ -489,9 +522,14 @@ async function syncState(stateData) {
                 JSON.stringify(invoice.details || {})
             ]);
         }
+        // Ghi version moi de cac phien khac phat hien state da doi.
+        committedVersion = nextStateVersion();
+        await client.query('UPDATE settings SET state_version = $1, updated_at = now() WHERE id = true', [committedVersion]);
     });
 
-    await emitEvent('state.updated', {});
+    // Phat kem version de client tu doi chieu, khong can luon reload snapshot.
+    await emitEvent('state.updated', { stateVersion: committedVersion });
+    return { version: committedVersion };
 }
 
 module.exports = {
@@ -506,5 +544,6 @@ module.exports = {
     updateSettings,
     getSnapshot,
     emitEvent,
-    syncState
+    syncState,
+    readStateVersion
 };
