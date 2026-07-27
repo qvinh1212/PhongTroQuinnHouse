@@ -115,6 +115,34 @@
         });
     }
 
+    // Hi?n th?ng b?o khi phi?n kh?c ?? ghi d? li?u tr??c v? b?n local b? t? ch?i.
+    function showConflictNotice() {
+        let notice = document.getElementById('state-conflict-notice');
+        if (!notice) {
+            notice = document.createElement('div');
+            notice.id = 'state-conflict-notice';
+            notice.setAttribute('role', 'status');
+            notice.setAttribute('aria-live', 'polite');
+            notice.className = 'fixed bottom-4 right-4 z-50 max-w-sm px-4 py-3 rounded-lg shadow-lg bg-[#FFF3E0] text-[#E65100] border border-[#FFE0B2] text-sm font-semibold';
+            document.body.appendChild(notice);
+        }
+
+        notice.textContent = 'D? li?u ?? ???c c?p nh?t ? thi?t b? kh?c. B?n m?i nh?t ?? ???c t?i l?i, vui l?ng nh?p l?i thay ??i v?a r?i.';
+        notice.hidden = false;
+
+        clearTimeout(showConflictNotice.timer);
+        showConflictNotice.timer = setTimeout(() => {
+            notice.hidden = true;
+        }, 8000);
+    }
+
+    function setupStateConflictHandler() {
+        window.addEventListener('quinn-state-conflict', () => {
+            showConflictNotice();
+            router();
+        });
+    }
+
     function updateSidebarActive(viewName) {
         const sidebar = document.querySelector('aside');
         if (!sidebar) return;
@@ -220,6 +248,7 @@
 
         setupRealtimeClock();
         setupRealtimeStateSync();
+        setupStateConflictHandler();
 
         // Khởi chạy router lần đầu tiên
         router();

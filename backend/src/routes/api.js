@@ -46,17 +46,15 @@ function parse(schema, body) {
 
 const { config } = require('../config');
 
+router.use(requireApiKey);
+
+// Chan doan cau hinh. Nam sau requireApiKey va khong tiet lo noi dung API key.
 router.get('/debug-status', (req, res) => {
-    const key = config.apiKey || '';
     res.json({
         nodeEnv: config.nodeEnv,
-        apiKeyConfigured: !!key,
-        apiKeyLength: key.length,
-        apiKeyHint: key.length > 3 ? `${key.substring(0, 3)}***` : (key.length > 0 ? '***' : '')
+        apiKeyConfigured: Boolean(config.apiKey)
     });
 });
-
-router.use(requireApiKey);
 
 router.get('/snapshot', async (req, res, next) => {
     try {
@@ -68,8 +66,12 @@ router.get('/snapshot', async (req, res, next) => {
 
 router.post('/sync', async (req, res, next) => {
     try {
-        await service.syncState(req.body);
-        res.json({ success: true });
+        const result = await service.syncState(req.body, {
+            baseVersion: req.get('if-match') || req.body?.baseVersion || null,
+            force: req.get('x-sync-force') === 'true'
+        });
+        res.set('ETag', result.version);
+        res.json({ success: true, version: result.version });
     } catch (error) {
         next(error);
     }
